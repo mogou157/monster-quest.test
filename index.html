@@ -67,6 +67,12 @@
   .statInfo b{ color:var(--gold); }
   .typeTag{ display:inline-block; font-size:9px; padding:1px 5px; border-radius:3px; margin-left:4px; }
   .dexGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:4px; }
+  #worldMapOverlay { background:rgba(8,10,26,.97); overflow-y:auto; }
+  .mapGridCell { background:var(--panel); border:1px solid #2a2a4a; border-radius:6px; padding:10px 0; text-align:center; font-size:16px; font-weight:bold; color:#444; display:flex; flex-direction:column; justify-content:center; align-items:center; transition:0.2s; }
+  .mapGridCell.visited { color:var(--text); border-color:#555; }
+  .mapGridCell.teleport { cursor:pointer; border-color:var(--accent2); color:var(--accent2); background:#0f202b; box-shadow:0 0 8px rgba(15,155,142,0.4); }
+  .mapGridCell.teleport:hover { background:var(--accent2); color:#0b0b1a; }
+  .mapGridCell.current { background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:0 0 10px rgba(233,69,96,0.6); }
   .dexCard{ background:var(--panel); border-radius:6px; padding:6px; text-align:center; border:1px solid #2a2a4a; }
   .dexCard.locked{ opacity:.35; }
   .dexCard.seen{ opacity:.65; }
@@ -210,7 +216,15 @@
     <div id="questList"></div>
     <div class="closeHint">按 <kbd>Q</kbd> 或 <kbd>Esc</kbd> 關閉</div>
   </div>
-  
+  <div id="worldMapOverlay" class="overlay">
+    <div class="panelTitle">▌ 冒險世界地圖 ▌</div>
+    <!-- 上方數字網格區 -->
+    <div id="worldMapGrid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:16px; padding:4px;"></div>
+    <!-- 下方圖例對照區 -->
+    <div style="text-align:center; font-size:10px; color:#666f9e; margin-bottom:6px;">✈️ 代表可傳送區域 (需完成第九章)</div>
+    <div id="worldMapLegend" style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:11px; color:#9aa5ce; background:var(--panel); padding:10px; border-radius:6px; border:1px solid #2a2a4a;"></div>
+    <div class="closeHint">按 <kbd>Esc</kbd> 關閉</div>
+  </div>
 
   <div id="shopOverlay" class="overlay">
     <div class="panelTitle">▌ 商店 ▌</div>
@@ -555,6 +569,11 @@ const BattleManager = {
             setTimeout(enemyTurn, 900);
             return;
         }
+        if (p.tauntTurns > 0 && move.power === 0) {
+            log(`💢 ${MonsterUtil.species(p).name} 受到挑釁影響，腦中只想著攻擊，無法使用變化招式！`);
+            showBattleControls();
+            return;
+        }
         p.moveUses = p.moveUses || {};
         if (move.maxUses && (p.moveUses[move.id] || 0) >= move.maxUses) {
             log(`${MonsterUtil.species(p).name} 的 ${move.name} 已經沒有剩餘使用次數了！`);
@@ -668,7 +687,42 @@ const BattleManager = {
                         if(cured){ curedMsg = ` 但${MonsterUtil.species(wild).name}立刻解除了${STATUS_META[cured].name}!`; setTimeout(()=>playCureAnim('wildCanvas'), 400); }
                     }
                     log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name}!` + (inflicted ? ` 對方陷入了${STATUS_META[inflicted].name}狀態!${curedMsg}` : ' 但是沒有效果...'));
-                    
+                    } else if (move.cureStatus) {
+                    playLungeAnim('playerCanvas','player'); playCureAnim('playerCanvas');
+                    p.status = null;
+                    log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name}，完全淨化了自身的異常狀態！`);
+                } else if (move.swapStats) {
+                    playLungeAnim('playerCanvas','player'); playBuffAnim('playerCanvas'); playBuffAnim('wildCanvas');
+                    let tempAtk = p.atkMult, tempDef = p.defMult;
+                    p.atkMult = wild.atkMult; p.defMult = wild.defMult;
+                    wild.atkMult = tempAtk; wild.defMult = tempDef;
+                    log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name}，雙方的能力變化值被對調了！`);
+                } else if (move.tauntTurns) {
+                    playLungeAnim('playerCanvas','player'); playStatusInflictAnim('wildCanvas', 'burn'); 
+                    wild.tauntTurns = move.tauntTurns;
+                    log(prefix + `${MonsterUtil.species(p).name} 瘋狂 ${move.name} 對方！對手被激怒，接下來只能使用攻擊招式！`);
+                } else if (move.applyLeech) {
+                    playLungeAnim('playerCanvas','player'); playStatusInflictAnim('wildCanvas', 'poison');
+                    wild.leechTurns = move.applyLeech.turns; wild.leechPct = move.applyLeech.pct;
+                    log(prefix + `${MonsterUtil.species(p).name} 撒下了 ${move.name}！種子深深扎根在對方身上！`);
+                } else if (move.sacrificePct) {
+                    playLungeAnim('playerCanvas','player'); playBuffAnim('playerCanvas');
+                    let cost = Math.max(1, Math.round(p.maxHp * move.sacrificePct));
+                    p.hp = Math.max(1, p.hp - cost); // 不會自殺
+                    p.nextAttackMult = move.nextAttackMultiplier;
+                    log(prefix + `${MonsterUtil.species(p).name} 進行 ${move.name}，獻祭了 ${cost} 點 HP 換取極大破壞力！`);
+                } else if (move.damageReduction) {
+                    playLungeAnim('playerCanvas','player'); playBuffAnim('playerCanvas');
+                    p.guardReduction = move.damageReduction;
+                    log(prefix + `${MonsterUtil.species(p).name} 擺出 ${move.name}，準備化解接下來的攻擊！`);
+                } else if (move.setCharge) {
+                    playLungeAnim('playerCanvas','player'); playBuffAnim('playerCanvas');
+                    p.nextAttackMult = 2.0; 
+                    log(prefix + `${MonsterUtil.species(p).name} 正在 ${move.name}！下一次攻擊威力將會翻倍！`);
+                } else if (move.counterPct) {
+                    playLungeAnim('playerCanvas','player'); playBuffAnim('playerCanvas');
+                    p.counterReady = move.counterPct;
+                    log(prefix + `${MonsterUtil.species(p).name} 架起了 ${move.name} 的架勢！`);
                 // 🌟 2. 秘笈效果：絕對防禦與反轉
                 } else if (move.applyImmunity) {
                     playLungeAnim('playerCanvas','player'); playBuffAnim('playerCanvas');
@@ -702,6 +756,16 @@ const BattleManager = {
                     }
                     
                     wild.hp = Math.max(0, wild.hp - dmg);
+                    // 標記受傷給「復仇」使用
+                    if (dmg > 0) wild.tookDamageLastTurn = true; 
+                    
+                    // 處理反擊機制
+                    if (wild.counterReady && dmg > 0 && move.power > 0) {
+                        let counterDmg = Math.max(1, Math.round(dmg * wild.counterReady));
+                        p.hp = Math.max(0, p.hp - counterDmg);
+                        msg += ` ⚡ 對方發動反擊，彈回了 ${counterDmg} 點傷害！`;
+                        wild.counterReady = null; 
+                    }
                     let msg = prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},造成 ${dmg} 傷害!`;
                     
                     if (move.leaveOneHp && wild.hp === 1 && dmg === 0) {
@@ -817,6 +881,11 @@ const BattleManager = {
             log(`${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 因為先前的強大反作用力，本回合無法動彈！`);
             renderBattle();
             showBattleControls(); // 換玩家行動
+            return;
+        }
+        if (wild.tauntTurns > 0 && move.power === 0) {
+            log(`💢 ${MonsterUtil.species(wild).name} 受到挑釁影響，腦中只想著攻擊，無法使用變化招式！`);
+            showBattleControls();
             return;
         }
 
@@ -937,6 +1006,42 @@ const BattleManager = {
                     p.atkMult = 1 / (p.atkMult || 1);
                     p.defMult = 1 / (p.defMult || 1);
                     log(prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name}，對方能力變化全部顛倒了！`);
+                    } else if (move.cureStatus) {
+                    playLungeAnim('wildCanvas','wild'); playCureAnim('wildCanvas');
+                    wild.status = null;
+                    log(prefix + `${MonsterUtil.species(wild).name} 使出 ${move.name}，完全淨化了自身的異常狀態！`);
+                } else if (move.swapStats) {
+                    playLungeAnim('wildCanvas','wild'); playBuffAnim('wildCanvas'); playBuffAnim('playerCanvas');
+                    let tempAtk = wild.atkMult, tempDef = wild.defMult;
+                    wild.atkMult = p.atkMult || 1; wild.defMult = p.defMult || 1;
+                    p.atkMult = tempAtk || 1; p.defMult = tempDef || 1;
+                    log(prefix + `${MonsterUtil.species(wild).name} 使出 ${move.name}，雙方的能力變化值被對調了！`);
+                } else if (move.tauntTurns) {
+                    playLungeAnim('wildCanvas','wild'); playStatusInflictAnim('playerCanvas', 'burn'); 
+                    p.tauntTurns = move.tauntTurns;
+                    log(prefix + `${MonsterUtil.species(wild).name} 瘋狂 ${move.name} 你的怪獸！接下來只能使用攻擊招式！`);
+                } else if (move.applyLeech) {
+                    playLungeAnim('wildCanvas','wild'); playStatusInflictAnim('playerCanvas', 'poison');
+                    p.leechTurns = move.applyLeech.turns; p.leechPct = move.applyLeech.pct;
+                    log(prefix + `${MonsterUtil.species(wild).name} 撒下了 ${move.name}！種子深深扎根在你身上！`);
+                } else if (move.sacrificePct) {
+                    playLungeAnim('wildCanvas','wild'); playBuffAnim('wildCanvas');
+                    let cost = Math.max(1, Math.round(wild.maxHp * move.sacrificePct));
+                    wild.hp = Math.max(1, wild.hp - cost);
+                    wild.nextAttackMult = move.nextAttackMultiplier;
+                    log(prefix + `${MonsterUtil.species(wild).name} 進行 ${move.name}，獻祭了 ${cost} 點 HP 換取極大破壞力！`);
+                } else if (move.damageReduction) {
+                    playLungeAnim('wildCanvas','wild'); playBuffAnim('wildCanvas');
+                    wild.guardReduction = move.damageReduction;
+                    log(prefix + `${MonsterUtil.species(wild).name} 擺出 ${move.name}，準備化解接下來的攻擊！`);
+                } else if (move.setCharge) {
+                    playLungeAnim('wildCanvas','wild'); playBuffAnim('wildCanvas');
+                    wild.nextAttackMult = 2.0; 
+                    log(prefix + `${MonsterUtil.species(wild).name} 正在 ${move.name}！下一次攻擊威力將會翻倍！`);
+                } else if (move.counterPct) {
+                    playLungeAnim('wildCanvas','wild'); playBuffAnim('wildCanvas');
+                    wild.counterReady = move.counterPct;
+                    log(prefix + `${MonsterUtil.species(wild).name} 架起了 ${move.name} 的架勢！`);
                 } else {
                     
                     // ⚔️ 攻擊招式結算
@@ -955,6 +1060,16 @@ const BattleManager = {
                     }
                     
                     p.hp = Math.max(0, p.hp - dmg);
+                    // 🌟 標記受傷給「復仇」使用
+                    if (dmg > 0) p.tookDamageLastTurn = true; 
+                    
+                    // 🌟 處理反擊機制
+                    if (p.counterReady && dmg > 0 && move.power > 0) {
+                        let counterDmg = Math.max(1, Math.round(dmg * p.counterReady));
+                        wild.hp = Math.max(0, wild.hp - counterDmg);
+                        msg += ` ⚡ ${MonsterUtil.species(p).name} 發動反擊，彈回了 ${counterDmg} 點傷害！`;
+                        p.counterReady = null; // 消耗反擊狀態
+                    }
                     let msg = prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name},造成 ${dmg} 傷害!`;
                     
                     if (move.leaveOneHp && p.hp === 1 && dmg === 0) {
@@ -1082,17 +1197,29 @@ const BattleManager = {
         ensureDailyFresh();
         dailyProgress.battles++;
         GameState.player.totalWins = (GameState.player.totalWins || 0) + 1;
-        // 從 BattleManager 抓取當前戰鬥資訊
+// 從 BattleManager 抓取當前戰鬥資訊
         const isTrainer = this.state.isTrainerBattle;
         const currentTrainer = this.state.trainerData;
         let wild = this.state.enemy;
 
+        // 🌪️ 🌑 結算前的羈絆掃描 (風系加全隊經驗、暗系加金幣)
+        let extraGoldMult = 1.0;
+        let windExpMult = 1.0;
+        party.forEach(m => {
+            if (m.hp > 0) {
+                const sp = MonsterUtil.species(m);
+                const tier = getBondTier(m.bond);
+                if (sp.type === 'dark' && tier > 0) extraGoldMult += (0.1 * tier); // 最高 +30% 金幣
+                if (sp.type === 'wind' && tier > 0) windExpMult = Math.max(windExpMult, 1 + 0.03 * tier); // 最高 +9% 全隊經驗
+            }
+        });
+
         const bonus = isTrainer ? 1.4 : 1.0;
-        const baseExp = Math.round((10 + wild.level*4) * bonus);
-        const coinGain = Math.round((5 + wild.level*2) * bonus);
-        GameState.player.coins += coinGain;
-        GameState.player.totalEarnedCoins = (GameState.player.totalEarnedCoins || 0) + coinGain;
+        const baseExp = Math.round((10 + wild.level*4) * bonus * windExpMult); // 套用風系全隊加成
+        const coinGain = Math.round((5 + wild.level*2) * bonus * extraGoldMult); // 套用暗系金幣加成
         
+        GameState.player.coins += coinGain;
+        GameState.player.totalEarnedCoins = (GameState.player.totalEarnedCoins || 0) + coinGain; // 🌟 歷史總金幣紀錄(保留)        
         let scavengeMsg = '';
         if(party.some(m => m.hp > 0 && MonsterUtil.passive(m) === 'scavenger') && Math.random() < 0.3){
             const extraCoins = Math.round(wild.level * 3);
@@ -1113,6 +1240,11 @@ const BattleManager = {
             let winBondGain = (m.mood === 'want_fight') ? 4 : 2;
             m.bond = Math.min(200, (m.bond || 0) + winBondGain);            
             let gain = i===GameState.party.activeIndex ? baseExp : Math.round(baseExp*0.5);
+            // ✨ 光系羈絆共鳴：自身經驗值加成
+    const pTier = getBondTier(m.bond);
+    if (MonsterUtil.species(m).type === 'light' && pTier > 0) {
+        gain = Math.round(gain * (1 + 0.1 * pTier)); // 最高額外 +30% 經驗
+    }
             if(MonsterUtil.species(m).passive==='expBoost') gain = Math.round(gain*1.3); 
             if(!m.itemDisabled && heldItemDef(m)?.expBoost) gain = Math.round(gain * heldItemDef(m).expBoost);
             m.exp += gain;
@@ -1123,7 +1255,7 @@ const BattleManager = {
                 m.level++;
                 m.bond = Math.min(200, (m.bond || 0) + 2);
                 let spNow = MonsterUtil.species(m);
-                let stats = computeStats(spNow, m.level, m.iv);
+                let stats = computeStats(spNow, m.level, m.iv, m.bond);
                 m.maxHp = stats.maxHp; m.atk = stats.atk; m.def = stats.def;
                 m.hp = m.maxHp;
                 leveled = true;
@@ -1214,8 +1346,24 @@ const BattleManager = {
         hideBattleControls();
         if(deathMsg){ party.forEach(m=> m.hp=m.maxHp); toast(deathMsg); }
         updateHud(); SaveManager.save();
-    },
+document.getElementById('btnCatch').disabled=false;
+        hideBattleControls();
+        if(deathMsg){ party.forEach(m=> m.hp=m.maxHp); toast(deathMsg); }
+        updateHud(); SaveManager.save();
 
+        // 👇 🌟 創世巨樹：彩虹奇蹟判定 (戰鬥結束後立刻檢查)
+        if (GameState.world.woodGodTrial) {
+            GameState.world.woodGodTrial = false; // 判定完立刻重置標記
+            
+            // 如果玩家沒有全滅 (!deathMsg)，而且這場戰鬥的天氣剛好是彩虹
+            if (!deathMsg && currentWeather && currentWeather.id === 'rainbow') {
+                setTimeout(() => {
+                    alert('🌈 戰鬥中引發的彩虹光芒，照亮了枯萎的聖壇...\n\n神樹吸收了彩虹的奇蹟之力，創世巨樹拔地而起！');
+                    triggerWoodGodBattle(); // 召喚神獸！
+                }, 1000);
+            }
+        }
+    },
     // 處理更換怪獸
     doSwap: function(newIndex) {
         hideBattleControls();
@@ -1285,10 +1433,9 @@ function typeMultiplier(atk, def){
 const VisionManager = {
     // 自動判斷當前地圖需不需要迷霧
     needsFog: function() {
-        return ['map2', 'map21'].includes(GameState.player.mapId);
+        return ['map3','map4', 'map21','map22'].includes(GameState.player.mapId);
     },
 
-// 自動計算當前視野半徑 (多重疊加系統！)
 // 自動計算當前視野半徑 (多重疊加系統！)
     getRadius: function() {
         let baseR = 4; // 預設視野
@@ -1963,7 +2110,7 @@ const SPECIES = [
   { id:'13',   name:'Haa',             type:'water',   color:'#BAC9D4', accent:'#6B3C18', outlineColor:'#CFB180', shape:'shrimp',       baseHp:30, baseAtk:16, baseDef:7,  passive:'firstStrike' },
   { id:'14',   name:'Turizao',         type:'water',   color:'#C1FA98', accent:'#6B3C18', outlineColor:'#ecf0f1', shape:'fishing_rod',  baseHp:35, baseAtk:14, baseDef:8,  passive:'sunnyPower' },
   { id:'15',   name:'Hakuchyo',        type:'water',   color:'#F7FDFF', accent:'#6B3C18', outlineColor:'#ecf0f1', shape:'swan',         baseHp:42, baseAtk:11, baseDef:10, passive:'rainSummon' },
-  { id:'16',   name:'雛鶏 Suukei',     type:'wind',    color:'#FCFC9F', accent:'#6B3C18', outlineColor:'#fff0a0', shape:'chick',        baseHp:32, baseAtk:12, baseDef:6,  passive:'wakeUp' },
+  { id:'16',   name:'雛鶏 Suukei',     type:'wind',    color:'#FCFC9F', accent:'#6B3C18', outlineColor:'#FFB575', shape:'chick',        baseHp:32, baseAtk:12, baseDef:6,  passive:'wakeUp' , noEyes: true},
   { id:'17',   name:'Funsui',          type:'water',   color:'#5FC5F5', accent:'#6B3C18', outlineColor:'#ecf0f1', shape:'fountain',     baseHp:46, baseAtk:9,  baseDef:13, passive:'purity' },
   { id:'18',   name:'珊瑚 Sango',      type:'water',   color:'#65D2F7', accent:'#92F793', outlineColor:'#ecf0f1', shape:'coral',        baseHp:38, baseAtk:8,  baseDef:18, passive:'waterAbsorbDef' },
   { id:'19',   name:'Seoi bam',        type:'water',   color:'#A8A8A8', accent:'#6B3C18', outlineColor:'#ecf0f1', shape:'water_pump',   baseHp:42, baseAtk:13, baseDef:11, passive:'wheelAtk' },
@@ -2093,12 +2240,12 @@ function drawMonster(ctx, species, w, h, overrideColor) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('?', 0, 2);
   }
-
-  // 統一畫眼睛 (除非怪獸本身沒有眼睛)
-  ctx.fillStyle = species.eyeColor || '#111';
-  ctx.beginPath(); ctx.arc(-s*0.32, -s*0.05, s*0.14, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(s*0.32, -s*0.05, s*0.14, 0, Math.PI*2); ctx.fill();
-  
+// 👇 🌟 新增判斷：如果怪獸沒有設定 noEyes: true，才畫預設的雙眼
+  if (!species.noEyes) {
+      ctx.fillStyle = species.eyeColor || '#111';
+      ctx.beginPath(); ctx.arc(-s*0.32, -s*0.05, s*0.14, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s*0.32, -s*0.05, s*0.14, 0, Math.PI*2); ctx.fill();
+  }
   ctx.restore();
 }
 // ==========================================
@@ -2634,11 +2781,13 @@ const SHAPE_DRAWERS = {
       ctx.beginPath(); ctx.arc(-s*0.2, -s*0.8, s*0.3, 0, Math.PI*2); ctx.fill(); ctx.stroke();
     },
     chick(ctx, s, species, overrideColor) {
-      ctx.beginPath(); ctx.arc(0, s*0.4, s*0.7, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.arc(0, -s*0.4, s*0.5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = species.accent;
-      ctx.beginPath(); ctx.moveTo(-s*0.2, -s*0.4); ctx.lineTo(-s*0.6, -s*0.2); ctx.lineTo(-s*0.2, 0); ctx.fill();
-    },
+  ctx.beginPath(); ctx.arc(0, 0, s*0.6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = species.accent;
+  ctx.beginPath(); ctx.arc(s*0.2, -s*0.2, s*0.08, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(s*0.6, -s*0.1); ctx.lineTo(s*0.9, 0); ctx.lineTo(s*0.55, s*0.1); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-s*0.2, s*0.6); ctx.lineTo(-s*0.2, s*1.0); ctx.lineTo(-s*0.4, s*1.0); ctx.moveTo(s*0.2, s*0.6); ctx.lineTo(s*0.2, s*1.0); ctx.lineTo(s*0.4, s*1.0); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-s*0.1, s*0.1, s*0.2, Math.PI, 0, true); ctx.stroke();
+},
     fountain(ctx, s, species, overrideColor) {
       ctx.beginPath(); ctx.ellipse(0, s*0.8, s*1.0, s*0.3, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
       ctx.beginPath(); ctx.rect(-s*0.2, -s*0.5, s*0.4, s*1.3); ctx.fill(); ctx.stroke();
@@ -2847,7 +2996,7 @@ const MAP6_1 =[
   [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
   [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
   [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2],
-  [5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,23],
+  [5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,23,23],
   [2,0,1,1,1,1,1,1,0,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2],
   [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
 ];
@@ -2877,7 +3026,7 @@ const MAP8 = [
   [2,4,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2],
   [2,0,0,11,0,0,0,2,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2],
   [2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2],
-  [50,0,0,0,0,0,0,2,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,11,0,2], // 預設 a 為 2 (牆壁)
+  [55,0,0,0,0,0,0,2,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,11,0,2], // 預設 a 為 2 (牆壁)
   [2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,0,2],
   [2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,0,2],
   [2,0,0,0,0,0,0,2,0,0,1,1,1,1,1,1,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,0,0,2],
@@ -2886,8 +3035,8 @@ const MAP8 = [
   [2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,11,0,2],
   [2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,11,1,1,1,2,0,0,0,0,0,0,0,0,0,0,2],
   [2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,0,0,2],
-  [2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,0,0,2],
-  [2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,0,0,2],
+  [2,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,0,0,2],
+  [2,1,1,2,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,0,0,2],
   [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,2], // 預設 a 為 2
   [2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,0,0,2],
   [2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,0,0,2],
@@ -2955,7 +3104,7 @@ const MAP_PLAZA = [
   [2,0,0,1,1,0,0,1,1,1,0,0,3,15,15,13,13,2,2,13,13,15,15,3,0,0,1,1,0,0,1,1,0,2],
   [2,1,7,0,0,1,0,0,0,1,1,1,3,3,15,15,13,13,13,13,13,15,15,3,3,0,1,0,0,1,1,7,1,2],
   [2,0,1,0,1,1,1,0,0,0,0,1,3,3,15,15,15,15,15,15,15,15,15,3,3,0,0,1,0,1,0,1,0,2],
-  [2,1,1,0,1,0,1,1,0,0,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,1,1,1,0,0,1,2],
+  [2,1,1,0,1,0,1,1,0,0,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,1,1,1,0,0,1,2],
   [2,0,0,1,1,0,0,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,0,0,1,1,0,0,1,0,2],
   [2,1,1,0,0,1,1,0,0,1,1,0,0,1,1,1,1,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,1,2],
   [2,0,1,0,1,0,1,0,1,0,1,0,1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,2],
@@ -2973,11 +3122,11 @@ const TRAINERS_PLAZA = [
 ];
 const MAP10 = [
   [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
-  [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
-  [2,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10,1,1,1,1,1,1,1,0,2],
-  [2,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10,1,1,1,1,1,1,1,0,2],
-  [2,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10,1,1,1,1,1,1,1,0,2],
-  [2,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,4,0,7,0,0,0,0,0,10,1,1,1,1,1,1,1,0,2],
+  [2,0,0,0,0,0,0,0,0,0,0,0,0,0,12,0,0,0,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+  [2,0,1,1,1,1,1,1,0,0,0,0,0,0,0,1,12,1,0,0,0,0,0,0,10,1,1,1,1,1,1,1,0,2],
+  [2,0,1,1,1,1,1,1,0,0,0,0,0,0,0,12,1,12,0,0,0,0,0,0,10,1,1,1,1,1,1,1,0,2],
+  [2,0,1,1,1,1,1,1,0,0,0,0,0,0,0,1,12,1,0,0,0,0,0,0,10,1,1,1,1,1,1,1,0,2],
+  [2,0,1,1,1,1,1,0,0,0,0,0,0,0,12,0,4,7,12,0,0,0,0,0,10,1,1,1,1,1,1,1,0,2],
   [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,2],
   [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
   [2,0,12,2,2,2,2,2,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,2,2,2,2,2,12,0,2],
@@ -3015,13 +3164,13 @@ const MAP11 = [
   [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2],
   [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2],
   [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2],
+  [2,1,11,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2],
   [2,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2],
   [2,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2],
   [2,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2],
-  [2,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2],
-  [2,1,1,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2],
-  [2,1,1,1,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,1,2],
-  [2,1,1,1,1,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,1,2],
+  [2,1,1,0,1,1,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2],
+  [2,1,1,1,0,1,1,1,1,1,1,2,0,2,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,1,2],
+  [2,1,1,1,1,0,1,1,1,1,1,1,2,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,1,2],
   [2,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,1,2],
   [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,36,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
 ];
@@ -3170,9 +3319,9 @@ const MAP16 = [
   // === 🏛️ 頂部：遺跡大殿與封印之門 (8) ===
   [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3],
   [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3],
-  [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,2,2,2,2,2,2,2,2,2,2,3,3,2,2,3,3], // 8 為封印之門，完成所有任務後開啟
-  [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,2,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3],
-  [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3],
+  [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,15,0,15,2,2,2,2,2,2,2,2,2,2,3,3,2,2,3,3], // 8 為封印之門，完成所有任務後開啟
+  [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,15,0,15,2,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3],
+  [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,15,15,15,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3],
   [2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,2,2,2,2,2,3,3,3,3,3,3,3,3],
   [2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,2,2,2,2,2,3,3,3,3,3,3,3,3],
   // === 🪨 中部：對稱的遺跡走廊與水池 (3 為淺水) ===
@@ -3221,7 +3370,7 @@ const MAP17 = [
   [2,1,0,1,0,1,2,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2],
   [2,1,0,1,0,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2], // 橫向黑線
   [2,1,0,1,0,1,2,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,2],
-  [2,1,0,1,0,1,2,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,2],
+  [2,1,0,1,0,1,2,1,1,1,0,1,1,1,1,1,1,1,1,1,1,11,1,1,1,1,1,1,1,1,0,1,1,2],
   [2,1,0,1,0,1,2,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,2],
   [2,1,0,1,0,1,2,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,2],
   [2,1,0,1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,2],
@@ -3692,15 +3841,47 @@ const NPCS = [
   { id:'npc_recall', mapId:'map5', x:12, y:5, name:'技能回憶師 志豪', color:'#30c0a0', kind:'moveRecall' },
   { id:'npc_code',  mapId:'map5', x:14, y:5, name:'神秘旅人 阿強', color:'#a030e0', kind:'tradeCode' },
   { id:'npc_storage', mapId:'map5', x:13, y:5, name:'倉庫管理員 阿寶', color:'#5a8fd6', kind:'storage' },
-{ id:'boss_origindra', mapId:'map16', x:16, y:2, name:'神獸 始源龍', color:'#ffd700', kind:'boss', species:'96', lvl:45 },
+{ id:'boss_origindra', mapId:'map16', x:16, y:6, name:'神獸 始源龍', color:'#ffd700', kind:'boss', species:'96', lvl:45 },
+{ mapId: 'map16', x: 16, y: 2, kind: 'seaGodShrine', name: '黑暗盡頭', sprite: '🌊' // 故意用問號偽裝，暗示看不清楚
+},
+{ mapId: 'map10', 
+x: 16, y: 3, // 這裡填入你打算放置聖壇的坐標
+kind: 'fireGodShrine', 
+name: '火神聖壇', 
+color: '#e94560'
+  },
+  // ⚡ 雷暴聖殿主機關 (只有雨天才會出現)
+  { mapId: 'map7', 
+x: 5, y: 5,  // 這裡填入雷暴聖殿所在的坐標
+kind: 'thunderGodShrine', 
+name: '雷暴聖殿', 
+color: '#ffcc00'
+  },
+  // 🌳 木神聖壇 (位於隱藏遺跡 map22)
+  { mapId: 'map22', 
+x: 4, y: 2, // 請依據 map22 實際的空地座標進行微調
+kind: 'woodGodShrine', 
+name: '枯萎聖壇', 
+color: '#2e8b57'
+  },
+  // ⚙️ 虛空神機 (位於 map30 隱藏迷宮終點)
+  { id:'boss_voidgear', 
+mapId:'map30', 
+x: 16, y: 10, // 請改成你地圖中的實際座標
+name:'虛空神機', 
+color:'#E6E6FA', 
+kind:'boss', 
+species:'95', 
+lvl: 50 
+  },
 { id:'npc_trade_1', mapId:'map2', x:15, y:6, name:'Mercader Diego', color:'#e0a030', kind:'tradeMonster', offerSpecies:'65', offerLevel:10, offerColor:'#75592F' }, // 西班牙文 (商人 迪亞哥)
   { id:'npc_trade_2', mapId:'map5', x:10, y:5, name:'Marchand Louis', color:'#e0a030', kind:'tradeMonster', offerSpecies:'16', offerLevel:12, offerColor:'#FEFFF2' }, // 法文 (商人 路易)
 
   // === ✈️ 神秘旅人 (Mystic Travelers) - 8 位散佈於各地 ===
   { id:'npc_code_1', mapId:'map2', x:19, y:7, name:'Viajero Mateo', color:'#a030e0', kind:'tradeCode' }, // 西班牙 (旅人 馬特奧)
   { id:'npc_code_2', mapId:'map5', x:14, y:5, name:'Msafiri Kofi', color:'#a030e0', kind:'tradeCode' }, // 斯瓦希里 (旅人 科菲)
-  { id:'npc_code_3', mapId:'map3', x:18, y:12, name:'Strannik Ivan', color:'#a030e0', kind:'tradeCode' }, // 俄羅斯 (流浪者 伊凡)
-  { id:'npc_code_4', mapId:'map6_1', x:16, y:8, name:'Fánaí Liam', color:'#a030e0', kind:'tradeCode' }, // 愛爾蘭 (流浪者 連恩)
+  { id:'npc_code_3', mapId:'map4', x:18, y:12, name:'Strannik Ivan', color:'#a030e0', kind:'tradeCode' }, // 俄羅斯 (流浪者 伊凡)
+  { id:'npc_code_4', mapId:'map6_1', x:16, y:18, name:'Fánaí Liam', color:'#a030e0', kind:'tradeCode' }, // 愛爾蘭 (流浪者 連恩)
   { id:'npc_code_5', mapId:'map8', x:12, y:10, name:'Rahal Amir', color:'#a030e0', kind:'tradeCode' }, // 阿拉伯 (遊牧民 阿米爾)
   { id:'npc_code_6', mapId:'map13', x:20, y:15, name:'Voyageur Leon', color:'#a030e0', kind:'tradeCode' }, // 法國 (旅人 里昂)
   { id:'npc_code_7', mapId:'map19', x:14, y:8, name:'Viaggiatore Luca', color:'#a030e0', kind:'tradeCode' }, // 義大利 (旅人 盧卡)
@@ -3883,8 +4064,8 @@ const MAP_THEMES = {
   map8:{ 0:'#5a6978', 1:'#3b4958', 2:'#E8C91E' },
   map21: { 0:'#3d3846', 1:'#2a2135', 2:'#1a1524' },
   map22: { 0:'#3d3846', 1:'#2a2135', 2:'#1a1524' },
-  map23:{0:'91C492'},
-  map24:{0:'91C492'},
+  map23:{0:'#91C492'},
+  map24:{0:'#91C492'},
 };
 function tileBaseColor(t){
   const theme = MAP_THEMES[GameState.player.mapId];
@@ -3903,7 +4084,7 @@ function drawMap(){
         if (t===15 && !partyHasType('dark')) {
             t = 2; 
         }
-        if (t === 68) {
+        if (t===68) {
             const ch10Unlocked = QUESTS.filter(q => q.chapter === 10).every(q => q.check());
             if (!ch10Unlocked) {
                 t = 2; // 任務未完成前，強行把畫面偽裝成牆壁 (2)
@@ -4081,7 +4262,8 @@ function drawMap(){
         mctx.fillRect(x*TILE+4, y*TILE+TILE/2, TILE-8, TILE/2-4);
       }
       if(t===8){
-        const unlocked = QUESTS.filter(q => q.chapter === 7).every(q => q.check());
+const requiredLegendaries = ['90', '91', '92', '93', '95', '96'];
+        const unlocked = requiredLegendaries.every(id => dex.has(id));
         mctx.fillStyle = unlocked ? '#3a2a5a' : '#1a1a2e';
         mctx.fillRect(x*TILE, y*TILE, TILE, TILE);
         mctx.strokeStyle = unlocked ? '#ffd700' : '#665577';
@@ -4118,86 +4300,115 @@ function drawMap(){
       mctx.strokeStyle = '#1a1a2e'; mctx.lineWidth = 1; mctx.stroke();
     }
   });
-  NPCS.filter(n=> n.mapId===GameState.player.mapId).forEach(n=>{
-    const px=n.x*TILE, py=n.y*TILE;
-    mctx.fillStyle = n.color;
-    mctx.beginPath(); mctx.arc(px+TILE/2, py+TILE/2, TILE/2-3, 0, Math.PI*2); mctx.fill();
+NPCS.filter(n => n.mapId === GameState.player.mapId).forEach(n => {
+    // 🌟 海神聖壇 與 雷暴聖殿 的雨天隱形判定
+    if ((n.kind === 'seaGodShrine' && !trainersDefeated.has('boss_seagod')) || 
+        (n.kind === 'thunderGodShrine' && !trainersDefeated.has('boss_thundergod'))) {
+        if (WeatherManager.getOverworldWeather(GameState.player.mapId) !== 'rain') {
+            return; // 直接跳過，達成非雨天隱形的效果
+        }
+    }
+
+    const px = n.x * TILE, py = n.y * TILE;
+    
+    mctx.fillStyle = n.color || '#1e3a8a'; 
+    mctx.beginPath(); mctx.arc(px + TILE / 2, py + TILE / 2, TILE / 2 - 3, 0, Math.PI * 2); mctx.fill();
     mctx.strokeStyle = '#1a1a2e'; mctx.lineWidth = 2; mctx.stroke();
     mctx.fillStyle = '#fff';
-    mctx.font='9px monospace'; mctx.textAlign='center';
-    const npcIcon = n.kind==='boss' ? '⚛' : (n.kind==='tradeCode' ? '⇄' : (n.kind==='moveRecall' ? '★' : (n.kind==='storage' ? '📦' : '$')));
-    mctx.fillText(npcIcon, px+TILE/2, py+TILE/2+3);
+    mctx.font = '9px monospace'; mctx.textAlign = 'center';
+    
+// 🌟 加入神獸專屬圖示
+    const npcIcon = n.kind === 'boss' ? '⚛' : 
+                    (n.kind === 'tradeCode' ? '⇄' : 
+                    (n.kind === 'moveRecall' ? '★' : 
+                    (n.kind === 'storage' ? '📦' : 
+                    (n.kind === 'seaGodShrine' ? '?' : 
+                    (n.kind === 'fireGodShrine' ? '🔥' : 
+                    (n.kind === 'thunderGodShrine' ? '⚡' : 
+                    (n.kind === 'iceGodShrine' ? '🧊' : 
+                    (n.kind === 'woodGodShrine' ? '🌳' : '$'))))))))                    
+    mctx.fillText(npcIcon, px + TILE / 2, py + TILE / 2 + 3);
   });
+    // ... (前面畫玩家跟 NPC 的程式碼) end...
   const px = player.x*TILE, py = player.y*TILE;
   mctx.fillStyle = playerColors.body;
   mctx.beginPath(); mctx.roundRect(px+4, py+4, TILE-8, TILE-8, 4); mctx.fill();
   mctx.fillStyle = playerColors.hair;
   mctx.fillRect(px+5, py+3, TILE-10, 5);
-if (typeof VisionManager !== 'undefined') {
+
+  if (typeof VisionManager !== 'undefined') {
       VisionManager.drawFog(mctx, TILE);
   }
-}
-// 注意:這裡故意不在載入時就呼叫 drawMap(),因為畫地圖時會用到
-// QUESTS(封印之門要不要顯示解鎖)等後面才宣告的資料,太早呼叫會讓整個
-// <script> 因為錯誤而中斷執行。真正開始畫地圖的時機是:選好初始怪物、
-// 讀取存檔、或匯入存檔的時候(見 selectSlot / 匯入 / 起始怪物選擇 相關程式碼)。
 
-setInterval(()=>{
-  animTime++;
-
-if(started && !inBattle && !overlayOpen && !typeChartOpen){
-    drawMap();
+  // 👇 🌟 將天氣特效移進來這裡！確保每次畫地圖時一定會連天氣一起畫！
+  const owWeatherId = WeatherManager.getOverworldWeather(GameState.player.mapId);
+  if (owWeatherId) {
+    mctx.save();
     
-    // 🌦️ 繪製地圖天氣特效 (從真實時間管理器抓取！)
-    const owWeatherId = WeatherManager.getOverworldWeather(GameState.player.mapId);
-    if (owWeatherId) {
-      mctx.save();
-      
       if (owWeatherId === 'fog') {
         const fogAlpha = 0.3 + Math.sin(animTime * 0.1) * 0.1;
         mctx.fillStyle = `rgba(200, 200, 220, ${fogAlpha})`;
         mctx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
       } 
-      else if (owWeatherId === 'snow') {
-        mctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        for (let i = 0; i < 40; i++) {
-          const x = (i * 37 + Math.sin(animTime * 0.05 + i) * 20) % mapCanvas.width;
-          const y = ((i * 53 + animTime * 3) % mapCanvas.height);
-          mctx.beginPath();
-          mctx.arc(Math.abs(x), Math.abs(y), (i % 3) + 1, 0, Math.PI * 2);
-          mctx.fill();
-        }
+    else if (owWeatherId === 'snow') {
+      mctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      for (let i = 0; i < 40; i++) {
+        const x = (i * 37 + Math.sin(animTime * 0.05 + i) * 20) % mapCanvas.width;
+        const y = ((i * 53 + animTime * 3) % mapCanvas.height);
+        mctx.beginPath();
+        mctx.arc(Math.abs(x), Math.abs(y), (i % 3) + 1, 0, Math.PI * 2);
+        mctx.fill();
       }
-      else if (owWeatherId === 'rain') {
-        mctx.strokeStyle = 'rgba(150, 200, 255, 0.5)';
-        mctx.lineWidth = 1.5;
-        for (let i = 0; i < 50; i++) {
-          const x = (i * 29 - animTime * 5) % (mapCanvas.width + 100);
-          const y = ((i * 41 + animTime * 15) % mapCanvas.height);
-          mctx.beginPath();
-          mctx.moveTo(Math.abs(x), Math.abs(y));
-          mctx.lineTo(Math.abs(x) - 10, Math.abs(y) + 20);
-          mctx.stroke();
-        }
-      }
-      else if (owWeatherId === 'sandstorm') {
-        mctx.fillStyle = 'rgba(210, 180, 140, 0.6)'; // 黃沙色
-        for (let i = 0; i < 60; i++) {
-          const x = ((i * 47 - animTime * 12) % mapCanvas.width + mapCanvas.width) % mapCanvas.width;
-          const y = ((i * 31 + animTime * 2) % mapCanvas.height);
-          mctx.fillRect(x, y, (i % 4) + 2, 2);
-        }
-      }
-      
-      mctx.restore();
     }
-  }});
+    else if (owWeatherId === 'rain') {
+      mctx.strokeStyle = 'rgba(150, 200, 255, 0.5)';
+      mctx.lineWidth = 1.5;
+      for (let i = 0; i < 50; i++) {
+        const x = (i * 29 - animTime * 5) % (mapCanvas.width + 100);
+        const y = ((i * 41 + animTime * 15) % mapCanvas.height);
+        mctx.beginPath();
+        mctx.moveTo(Math.abs(x), Math.abs(y));
+        mctx.lineTo(Math.abs(x) - 10, Math.abs(y) + 20);
+        mctx.stroke();
+      }
+    }
+    else if (owWeatherId === 'sandstorm') {
+      mctx.fillStyle = 'rgba(210, 180, 140, 0.6)'; // 黃沙色
+      for (let i = 0; i < 60; i++) {
+        const x = ((i * 47 - animTime * 12) % mapCanvas.width + mapCanvas.width) % mapCanvas.width;
+        const y = ((i * 31 + animTime * 2) % mapCanvas.height);
+        mctx.fillRect(x, y, (i % 4) + 2, 2);
+      }
+    }
+    
+    mctx.restore();
+  }
+} // 這是 drawMap() 函式end
+// // 注意:這裡故意不在載入時就呼叫 drawMap(),因為畫地圖時會用到
+// QUESTS(封印之門要不要顯示解鎖)等後面才宣告的資料,太早呼叫會讓整個
+// <script> 因為錯誤而中斷執行。真正開始畫地圖的時機是:選好初始怪物、
+// 讀取存檔、或匯入存檔的時候(見 selectSlot / 匯入 / 起始怪物選擇 相關程式碼)。
+
+// ==========================================
+// ⏳ 全域動畫定時器
+// ==========================================
+setInterval(()=>{
+  animTime++;
+
+  if(started && !inBattle && !overlayOpen && !typeChartOpen){
+      // 天氣特效已經移到 drawMap 裡面了，所以這裡只要呼叫 drawMap 就好！
+      drawMap(); 
+  }
+}, 50); // (後面的延遲時間毫秒數如果有設定的話保留你的設定即可)
 
 function isWalkable(x,y){
   if(x<0||y<0||x>=MAP_W||y>=MAP_H) return false;
   const t = MAP[y][x];
-  if(t===8) return QUESTS.filter(q => q.chapter === 7).every(q => q.check());
-  if(t===68) return QUESTS.filter(q => q.chapter === 10).every(q => q.check());
+if(t===8) {
+      const requiredLegendaries = ['90', '91', '92', '93', '95', '96'];
+      return requiredLegendaries.every(id => dex.has(id));
+  }
+    if(t===68) return QUESTS.filter(q => q.chapter === 10).every(q => q.check());
 
   if(t===3) return partyHasType('water'); // 淺水:目前既有的水,需要水屬性衝浪,但不會遇怪
   if(FIELD_TILES[t]) return partyHasType(FIELD_TILES[t].type);
@@ -4367,12 +4578,25 @@ if(k==='r'||k==='R'){
 // ==========================================
 
 // 📍 地圖事件座標設定檔 (資料驅動，以後新增機關只要加在這裡)
+// ==========================================
+// 📍 地圖事件座標設定檔 (資料驅動閘門系統)
+// ==========================================
 const MAP_EVENTS = {
+    // 雷暴聖殿 (主線關卡)
     map7: {
-        thunderGate: [[4,14], [4,15], [8,2], [8,3], [15,13], [15,14]]
+        thunderGate: [[14, 4], [15, 4], [2, 8], [3, 8], [13, 15], [14, 15]]
     },
+    // 充能閘門 B
     map8: {
-        thunderGate: [[5,15], [6,15],[2,8],[3,8]]
+        thunderGate: [[17, 22], [18, 22], [8, 2], [8, 3], [14, 4]]
+    },
+    // 充能閘門 C
+    map11: {
+        thunderGate: [[18, 11], [18, 13], [17, 12], [19, 12]] 
+    },
+    // 充能閘門 D
+    map17: {
+        thunderGate: [[2, 17], [2, 19], [1, 18], [3, 18]]
     }
 };
 const MapManager = {
@@ -4452,12 +4676,15 @@ const MapManager = {
         
         const targetTile = MAP[ny][nx];
         
-        // 🛡️ 2. 地形與技能阻擋判定
-        if(targetTile===8 && !QUESTS.filter(q => q.chapter === 7).every(q => q.check())){
-            toast('🔒 封印之門仍未開啟——完成【第七章】所有任務後再回來吧');
-            return;
-        }
-        // ... 水屬性衝浪判定 ...
+// 🛡️ 2. 地形與技能阻擋判定
+        if(targetTile===8) {
+            const requiredLegendaries = ['90', '91', '92', '93', '95', '96'];
+            const hasAllLegendaries = requiredLegendaries.every(id => dex.has(id));
+            if (!hasAllLegendaries) {
+                toast('🔒 封印之門緊閉——必須集齊世界上另外 6 隻神獸的認可才能開啟。');
+                return;
+            }
+        }        // ... 水屬性衝浪判定 ...
         if(targetTile===3 && !partyHasType('water')){
             toast(`🌊 這裡是水域,需要水屬性的怪物才能衝浪過去`);
             return;
@@ -4487,11 +4714,11 @@ const MapManager = {
             const portals = {
                 5: ['map2', 1, ny], 6: ['map1', 32, ny], 16: ['map3', 1, ny], 17: ['map2', 32, ny],
                 18: ['map4', 24, 20], 19: ['map3', 24, 1], 20: ['map5', 32, 8], 21: ['map4', 1, 8],
-                22: ['map6_1', 32, 6], 23: ['map5', 1, 20], 24: ['map6_2', 27, 12], 25: ['map6_1', 27, 1],
-                26: ['map4', 6, 1], 27: ['map7', 27, 1], 28: ['map8', 27, 19], 29: ['map7', 6, 20],
+                22: ['map6_1', 32, 16], 23: ['map5', 1, 19], 24: ['map6_2', 27, 12], 25: ['map6_1', 27, 13],
+                26: ['map4', 6, 1], 27: ['map7', 26, 1], 28: ['map8', 26, 20], 29: ['map7', 6, 20],
                 30: ['map10', 6, 19], 31: ['map9', 6, 1], 32: ['map11', 1, 6], 33: ['map4', 32, 6],
                 34: ['map11', 16, 1], 35: ['map9', 16, 20], 36: ['map12', 18, 1], 37: ['map11', 18, 20],
-                38: ['map20', 6, 20], 39: ['map5', 16, 1], 40: ['map8', 1, 4], 55: ['map18', 32, 4],
+                38: ['map20', 6, 20], 39: ['map5', 8, 1], 40: ['map8', 1, 4], 55: ['map18', 32, 4],
                 45: ['map18', 1, ny], 46: ['map17', 32, ny], 47: ['map19', nx, 1], 48: ['map17', nx, 20],
                 49: ['map20', nx, 1], 50: ['map18', nx, 20], 51: ['map20', 1, ny], 52: ['map19', 32, ny],
                 53: ['map20', 1, ny], 54: ['map19', 32, ny], 55:['map23',1,5],56:['map22',32,10],57:['map21',32,5],
@@ -4518,21 +4745,45 @@ const MapManager = {
                 openShop();
             } else if(tile===8){
                 revealLegendary();
-            } else if(tile===11){
-                // ⚡ 完美套用 openGate 的雷屬性機關！
-                if(partyHasType('thunder')){
-                    if(!mapGatesOpened[GameState.player.mapId]){
-                        mapGatesOpened[GameState.player.mapId] = true;
-                        this.openGate(GameState.player.mapId, 'thunderGate'); // 呼叫你的神經點子！
-                        toast('⚡ 雷屬性充能成功！前方的閘門開啟了！');
+} else if (tile === 11) {
+                // ⚡ 雷屬性充能閘門
+                if (partyHasType('thunder')) {
+                    const mapId = GameState.player.mapId;
+                    
+                    if (!MAP_EVENTS[mapId] || !MAP_EVENTS[mapId].thunderGate) {
+                        toast('⚡ 這裡沒有需要開啟的雷電閘門');
+                        return;
+                    }
+
+                    if (!mapGatesOpened[mapId]) {
+                        const opened = openThunderGates(mapId);
+                        
+                        if (opened) {
+                            let msg = '⚡ 雷屬性充能成功！前方的閘門開啟了！';
+                            
+                            // 👇 🌟 結合神獸充能核心收集邏輯
+                            if (mapId === 'map8' && !GameState.inventory.tb) {
+                                GameState.inventory.tb = 1;
+                                msg += '\n\n並在機關深處發現了【充能核心B】！';
+                            } else if (mapId === 'map11' && !GameState.inventory.tc) {
+                                GameState.inventory.tc = 1;
+                                msg += '\n\n並在機關深處發現了【充能核心C】！';
+                            } else if (mapId === 'map17' && !GameState.inventory.td) {
+                                GameState.inventory.td = 1;
+                                msg += '\n\n並在機關深處發現了【充能核心D】！';
+                            }
+                            
+                            alert(msg);
+                            SaveManager.save();
+                            drawMap(); // 確保畫面立刻更新，障礙物消失！
+                        }
                     } else {
                         toast('⚡ 充能閘門已處於開啟狀態');
                     }
                 } else {
                     toast('⚡ 需要雷屬性怪物才能使機關通電啟動');
                 }
-            } 
-            
+            }            
             // ⚔️ 5. 隨機遇敵判定
             if (!debugNoEncounters) {
                 if(tile===9 && Math.random() < (FIELD_TILES[9].encounter||0.16)) startWildBattle();
@@ -4622,6 +4873,7 @@ function closeOverlays(){
   document.getElementById('storageOverlay').style.display='none';
   document.getElementById('minigameOverlay').style.display='none';
   document.getElementById('exportImportOverlay').style.display='none';
+document.getElementById('worldMapOverlay').style.display = 'none';
   overlayOpen=null;
   focusList=[];
 }
@@ -4641,6 +4893,279 @@ function openNPC(npc){
   if(npc.kind==='moveRecall') openMoveRecallScreen(npc);
   if(npc.kind==='storage') openStorageScreen(npc);
   if(npc.kind==='boss') startBossBattle(npc);
+  // 👇 🌟 新增：神獸海神專屬機關
+  if(npc.kind==='seaGodShrine') handleSeaGodShrine(npc);
+  if(npc.kind==='fireGodShrine') handleFireGodShrine(npc); // 🌟 新增火神路線
+  if(npc.kind==='thunderGodShrine') handleThunderGodShrine(npc); // 🌟 雷神聖壇
+  // 🌟 神獸聖壇路線 (整合為單一判斷區塊)
+  else if(npc.kind.endsWith('GodShrine')) {
+      if (npc.kind === 'seaGodShrine') handleSeaGodShrine(npc);
+      else if (npc.kind === 'fireGodShrine') handleFireGodShrine(npc);
+      else if (npc.kind === 'thunderGodShrine') handleThunderGodShrine(npc);
+      else if (npc.kind === 'iceGodShrine') handleIceGodShrine(npc);
+  }
+  // 🌟 神獸聖壇路線 (整合為單一判斷區塊)
+  else if(npc.kind.endsWith('GodShrine')) {
+      if (npc.kind === 'seaGodShrine') handleSeaGodShrine(npc);
+      else if (npc.kind === 'fireGodShrine') handleFireGodShrine(npc);
+      else if (npc.kind === 'thunderGodShrine') handleThunderGodShrine(npc);
+      else if (npc.kind === 'iceGodShrine') handleIceGodShrine(npc);
+      else if (npc.kind === 'woodGodShrine') handleWoodGodShrine(npc); // 🌟 新增木神聖壇
+  }
+}
+// ==========================================
+// 🌊 神獸機關：海神聖壇 (位於 map16)
+// ==========================================
+function handleSeaGodShrine(npc) {
+    // 1. 檢查是否已經打敗過海神
+    if (trainersDefeated.has('boss_seagod')) {
+        toast('🌊 聖壇已失去光芒，海神的力量與你同在。');
+        return;
+    }
+
+    // 2. 檢查天氣是否為雨天 (如果不是，聖壇其實是隱形的，但以防萬一加個保護)
+    const isRaining = WeatherManager.getOverworldWeather(GameState.player.mapId) === 'rain';
+    if (!isRaining) {
+        alert('🌊 這裡是一片深水區...水面下似乎隱約有個巨大的石基。');
+        return;
+    }
+
+    // 3. 檢查隊伍：水系 且 (Lv >= 30 或是 親密度 >= 200)
+    const qualifiedWaterMon = party.find(m => 
+        effectiveType(m) === 'water' && (m.level >= 30 || (m.bond || 0) >= 200)
+    );
+
+    if (qualifiedWaterMon) {
+        const spName = MonsterUtil.species(qualifiedWaterMon).name;
+        alert(`🌧️ 狂風驟雨中，${spName} 釋放出了極其強大的水之共鳴！\n\n【海神聖壇】的大門敞開，深淵的守護者甦醒了！`);
+        
+        // 🎯 觸發海神 Boss 戰
+        let seaGod = makeMonster('92', 40); // 假設圖鑑 ID 為 92
+        seaGod.maxHp = Math.round(seaGod.maxHp * 1.5); 
+        seaGod.hp = seaGod.maxHp;
+
+        startBossBattle({
+            id: 'boss_seagod',
+            name: '深淵海神',
+            sprite: '🌊',
+            team: [seaGod],
+            winMsg: '深淵的怒濤平息了...海神認可了你的實力！'
+        });
+    } else {
+        alert('🌧️ 大雨滂沱，海神聖壇浮出了水面！\n\n但聖壇毫無反應...似乎需要一隻「身經百戰 (Lv.30+)」或「與你心靈相通 (親密度200滿值)」的【水屬性】怪獸來引發共鳴。');
+    }
+}
+// ==========================================
+// 🔥 神獸機關：火神聖壇 (位於 map10)
+// ==========================================
+function handleFireGodShrine(npc) {
+    // 檢查是否已經打敗過日珥神龍
+    if (trainersDefeated.has('boss_firegod')) {
+        toast('🔥 聖壇的火焰已漸漸平息，神龍的力量與你同在。');
+        return;
+    }
+
+    // 條件 1：打過 map9, map10 全部的 Trainers
+    // (抓取全遊戲的 TRAINERS 陣列，篩出 map9 和 map10 的，檢查是否 every 都被打敗)
+    const localTrainers = typeof TRAINERS !== 'undefined' ? TRAINERS.filter(t => t.mapId === 'map9' || t.mapId === 'map10') : [];
+    const clearedTrainers = localTrainers.length > 0 && localTrainers.every(t => trainersDefeated.has(t.id));
+
+    // 條件 2：隊伍中有一隻火系，且友好度 >= 60
+    const qualifiedFireMon = party.find(m => effectiveType(m) === 'fire' && (m.bond || 0) >= 60);
+
+    // 條件 4 (任務領取)：檢查背包是否有不滅聖火 A, B, C, D
+    const hasAllFires = GameState.inventory.fa && GameState.inventory.fb && GameState.inventory.fc && GameState.inventory.fd;
+
+    if (!clearedTrainers) {
+        alert('🔥 聖壇散發著微弱的熱氣...\n\n似乎需要先擊敗「中央廣場(map9)」與「熾熱山谷(map10)」的所有訓練家，向聖壇證明你的武勇。');
+        return;
+    }
+
+    if (!hasAllFires) {
+        alert('🔥 聖壇四周有四個空蕩蕩的火盆...\n\n需要透過完成任務，找齊四把「不滅聖火 (A, B, C, D)」才能點燃它們。');
+        return;
+    }
+
+    if (!qualifiedFireMon) {
+        alert('🔥 四把不滅聖火已經就位，但火焰無法融合...\n\n你需要一隻與你「關係良好 (友好度60+)」的【火屬性】怪獸來引導這股龐大的能量！');
+        return;
+    }
+    // 所有條件達成！觸發戰鬥
+    const spName = MonsterUtil.species(qualifiedFireMon).name;
+    alert(`🔥 ${spName} 將四把不滅聖火的能量引導至聖壇中央！\n\n岩漿劇烈翻騰，日珥神龍從熾熱的深淵中甦醒了！`);
+    
+    // 🎯 觸發火神 Boss 戰 (假設日珥神龍圖鑑 ID 為 '95')
+    let fireGod = makeMonster('95', 45); 
+    fireGod.maxHp = Math.round(fireGod.maxHp * 1.5); 
+    fireGod.hp = fireGod.maxHp;
+
+    startBossBattle({
+        id: 'boss_firegod',
+        name: '日珥神龍',
+        sprite: '🐉',
+        team: [fireGod],
+        winMsg: '熾熱的烈焰臣服於你...神龍認可了你的實力！'
+    });
+}
+
+// ==========================================
+// ⚡ 神獸機關：雷暴聖殿 (位於 map7)
+// ==========================================
+function handleThunderGodShrine(npc) {
+    if (trainersDefeated.has('boss_thundergod')) {
+        toast('⚡ 雷暴已歇，聖鳥的力量與你同在。');
+        return;
+    }
+
+    const isRaining = WeatherManager.getOverworldWeather(GameState.player.mapId) === 'rain';
+    if (!isRaining) {
+        alert('⚡ 這裡只是一片空地，但空氣中殘留著微弱的靜電...');
+        return;
+    }
+
+    // 檢查背包是否有 4 個充能核心
+    const hasAllCores = GameState.inventory.ta && GameState.inventory.tb && GameState.inventory.tc && GameState.inventory.td;
+
+    if (!hasAllCores) {
+        alert('⚡ 雷雨交加中，隱藏的【雷暴聖殿】顯現了！\n\n但聖殿大門緊閉...上面有四個凹槽，似乎需要啟動世界各地的「充能閘門」並收集四個【充能核心 (A, B, C, D)】。');
+        return;
+    }
+
+    // 所有條件達成！觸發戰鬥
+    alert(`⚡ 你將四個充能核心嵌入聖殿大門！\n\n轟隆！一道巨大的落雷劈下，天雷聖鳥從雷雲中降臨了！`);
+    
+    // 🎯 觸發雷神 Boss 戰 (假設天雷聖鳥圖鑑 ID 為 '94')
+    let thunderGod = makeMonster('94', 45); 
+    thunderGod.maxHp = Math.round(thunderGod.maxHp * 1.5); 
+    thunderGod.hp = thunderGod.maxHp;
+
+    startBossBattle({
+        id: 'boss_thundergod',
+        name: '天雷聖鳥',
+        sprite: '🦅',
+        team: [thunderGod],
+        winMsg: '震耳欲聾的雷聲停止了...聖鳥認可了你的實力！'
+    });
+}
+// ==========================================
+// ⚡ 通用雷系閘門開啟系統
+// ==========================================
+function openThunderGates(mapId) {
+    const event = MAP_EVENTS[mapId];
+
+    if (!event || !event.thunderGate) {
+        return false;
+    }
+
+    if (mapGatesOpened[mapId]) {
+        return false;
+    }
+
+    mapGatesOpened[mapId] = true;
+
+    // 依照你確定的 [row, col] (也就是 [y, x]) 順序來修改全域 MAP
+    for (const [row, col] of event.thunderGate) {
+        if (MAP[row] && MAP[row][col] !== undefined) {
+            MAP[row][col] = 0; // 0 代表平地
+        }
+    }
+
+    return true;
+}
+// ==========================================
+// ❄️ 神獸機關：冰神聖壇 (位於 map6_2)
+// ==========================================
+function handleIceGodShrine(npc) {
+    if (trainersDefeated.has('boss_icegod')) {
+        toast('❄️ 寒氣已散，冰河猛瑪的力量與你同在。');
+        return;
+    }
+
+    // 1. 抓取圖鑑中所有「一般冰系怪獸」的 ID (排除神獸本身)
+    const iceSpecies = SPECIES.filter(s => s.type === 'ice' && !s.legendary).map(s => s.id);
+    
+    // 🌟 解鎖路線 1：捕捉過圖鑑中所有的冰系怪物
+    const method1_caughtAllIce = iceSpecies.every(id => dex.has(id));
+    
+    // 🌟 解鎖路線 2：見過所有冰系 + 戰鬥外天氣為下雪 + 隊伍中有一隻友好度 > 120 的怪獸
+    const seenAllIce = iceSpecies.every(id => seenDex.has(id));
+    const isSnowing = WeatherManager.getOverworldWeather(GameState.player.mapId) === 'snow';
+    const highBondMon = party.find(m => (m.bond || 0) > 120);
+    const method2_weatherAndBond = seenAllIce && isSnowing && highBondMon;
+
+    // 只要滿足其中一條路線即可開啟！
+    if (method1_caughtAllIce || method2_weatherAndBond) {
+        
+        if (method1_caughtAllIce) {
+            alert(`❄️ 你對冰系怪獸透徹的了解，引發了強大的屬性共鳴！\n\n伴隨著一聲震天動地的咆哮，萬年玄冰碎裂，冰河猛瑪甦醒了！`);
+        } else {
+            const spName = MonsterUtil.species(highBondMon).name;
+            alert(`❄️ 漫天飛雪中，${spName} 身上散發出的強大羈絆融化了萬年玄冰！\n\n伴隨著一聲震天動地的咆哮，冰河猛瑪甦醒了！`);
+        }
+        
+        // 🎯 觸發冰神 Boss 戰 (假設冰河猛瑪圖鑑 ID 為 '96')
+        let iceGod = makeMonster('96', 50); 
+        iceGod.maxHp = Math.round(iceGod.maxHp * 1.5); 
+        iceGod.hp = iceGod.maxHp;
+
+        startBossBattle({
+            id: 'boss_icegod',
+            name: '冰河猛瑪',
+            sprite: '🐘',
+            team: [iceGod],
+            winMsg: '暴風雪平息了...猛瑪認可了你的實力！'
+        });
+
+    } else {
+        // 條件皆未滿足時的精準提示
+        alert('❄️ 巨大的萬年玄冰中封印著某種龐然大物...\n\n要喚醒牠似乎有兩種途徑：\n1. 成為冰系大師 (捕捉過世上所有的冰系怪獸)。\n2. 尋求天時地利 (在「下雪」的天氣裡，帶著「友好度大於120」的夥伴，且圖鑑見過所有冰系怪獸)。');
+    }
+}
+// ==========================================
+// 🌳 神獸機關：木神聖壇 (位於 map22)
+// ==========================================
+function handleWoodGodShrine(npc) {
+    if (trainersDefeated.has('boss_woodgod')) {
+        toast('🌳 聖壇生機盎然，創世巨樹的力量與你同在。');
+        return;
+    }
+
+    // 條件 1A：隊伍中有一隻會 'flash' 的怪物 (檢查現在裝備的與歷史學過的)
+    const hasFlash = party.some(m => m.moves.includes('flash') || (m.moveHistory && m.moveHistory.includes('flash')));
+    
+    // 條件 1B：隊伍中有一隻 Lv.20 以上，且友好度 >= 160 的木系怪物
+    const highBondWood = party.find(m => effectiveType(m) === 'wood' && m.level >= 20 && (m.bond || 0) >= 160);
+
+    // 🌟 解鎖路線 1：直接滿足嚴苛條件
+    if (hasFlash && highBondWood) {
+        const spName = MonsterUtil.species(highBondWood).name;
+        alert(`🌳 ${spName} 將溫暖的羈絆之力注入聖壇，同時閃耀出奪目的光芒！\n\n枯木逢春，巨大的藤蔓拔地而起，創世巨樹降臨了！`);
+        
+        triggerWoodGodBattle();
+    } 
+    // 🌟 解鎖路線 2：進入戰鬥，等待彩虹奇蹟
+    else {
+        alert('🍂 枯萎的聖壇沒有反應...\n\n(突然間，周圍的樹叢傳來了沙沙聲，似乎有野生怪物被驚動了！)');
+        
+        // 標記這是一場「聖壇驚動的野生戰鬥」，等待戰後結算天氣
+        GameState.world.woodGodTrial = true; 
+        startWildBattle(); // 強制觸發野怪戰鬥
+    }
+}
+
+// 獨立出來的木神 Boss 戰觸發器 (給路線 1 和 2 共用)
+function triggerWoodGodBattle() {
+    let woodGod = makeMonster('91', 50); // 假設創世巨樹圖鑑 ID 為 91
+    woodGod.maxHp = Math.round(woodGod.maxHp * 1.5); 
+    woodGod.hp = woodGod.maxHp;
+
+    startBossBattle({
+        id: 'boss_woodgod',
+        name: '創世巨樹',
+        sprite: '🌳',
+        team: [woodGod],
+        winMsg: '無盡的生命力溫和了下來...巨樹認可了你的實力！'
+    });
 }
 // ---------- 隊伍與圖鑑資料 ----------
 const PARTY_LIMIT = 8; // 隊伍上限,超過的怪物要放進倉庫
@@ -4714,11 +5239,39 @@ function createFoodItem(name, desc, price) {
     };
 }
 const ITEMS = {
+  // === 🏛️ 神獸聖物 (重要道具) ===
+  ta: { name: '充能核心A', desc: '散發著雷光的零件，用於啟動雷暴聖殿。', keyItem: true },
+  tb: { name: '充能核心B', desc: '散發著雷光的零件，用於啟動雷暴聖殿。', keyItem: true },
+  tc: { name: '充能核心C', desc: '散發著雷光的零件，用於啟動雷暴聖殿。', keyItem: true },
+  td: { name: '充能核心D', desc: '散發著雷光的零件，用於啟動雷暴聖殿。', keyItem: true },
+  
+  fa: { name: '不滅聖火A', desc: '燃燒著日珥之力的火種，用於熾熱山谷。', keyItem: true },
+  fb: { name: '不滅聖火B', desc: '燃燒著日珥之力的火種，用於熾熱山谷。', keyItem: true },
+  fc: { name: '不滅聖火C', desc: '燃燒著日珥之力的火種，用於熾熱山谷。', keyItem: true },
+  fd: { name: '不滅聖火D', desc: '燃燒著日珥之力的火種，用於熾熱山谷。', keyItem: true },
   potion:  { name:'治癒藥水', desc:'恢復50點HP',    price:15, use:(m)=>{ if(m.hp<=0||m.hp>=m.maxHp) return false; m.hp=Math.min(m.maxHp,m.hp+50); return true; } },
   potionH: { name:'強力藥水', desc:'恢復150點HP',   price:40, use:(m)=>{ if(m.hp<=0||m.hp>=m.maxHp) return false; m.hp=Math.min(m.maxHp,m.hp+150); return true; } },
   candy:   { name:'經驗果實', desc:'獲得30點經驗值', price:25, use:(m)=>{ if(m.hp<=0) return false; m.exp+=30; return true; } },
   fullHeal:{ name:'萬能藥',   desc:'治癒異常狀態',   price:20, use:(m)=>{ if(!m.status) return false; m.status=null; return true; } },
-  bdcandy:createFoodItem('一袋軟糖','色彩鮮艷的軟糖。友好度+2',15),
+// 👇 加入全新的捕獲護符
+  catchCharm: { name: '捕獲護符', desc: '被動道具：放在背包就能提升捕捉率！最多可購買升級 3 次。', price: 1500, maxBuy: 3, // 🌟 最高上限 3 級
+use: () => { toast('這是一項被動道具，只要擁有就會自動生效！'); return false; } },
+  
+  // 👇 替換原本的 worldMap (加入第九章解鎖的傳送功能)
+worldMap: { 
+name: '世界地圖', 
+desc: '記錄冒險足跡。完成第九章任務後解鎖「快速傳送」功能！', 
+price: 500, 
+noTarget: true, 
+use: () => { 
+    closeOverlays();
+    overlayOpen = 'worldMap';
+    renderWorldMapScreen();
+    document.getElementById('worldMapOverlay').style.display = 'flex';
+    return false; 
+} 
+},
+      bdcandy:createFoodItem('一袋軟糖','色彩鮮艷的軟糖。友好度+2',15),
   chikenSoup: createFoodItem('雞湯', '溫熱的湯品，能溫暖身心。友好度+2', 25),
   matcha: createFoodItem('抹茶', '微苦回甘的飲品。友好度+2', 20),
   juice: createFoodItem('果汁', '酸甜解渴。友好度+2', 20),
@@ -4860,82 +5413,95 @@ function updateCoinsHud(){
 const QUEST_NON_LEGENDARY_COUNT = SPECIES.filter(s=>!s.legendary).length;
 
 const QUESTS = [
-  // --- 第一章任務 ---
+  // --- 第一章 ---
   { id:'beatT1',    chapter:1, name:'初戰告捷',     desc:'擊敗任意一位訓練家', check:()=> trainersDefeated.size>=1 },
   { id:'beatAllT1', chapter:1, name:'新手之路制霸', desc:'擊敗新手之路全部訓練家', check:()=> TRAINERS1.every(t=>trainersDefeated.has(t.id)), progress:()=> `${TRAINERS1.filter(t=>trainersDefeated.has(t.id)).length}/${TRAINERS1.length}` },
-  { id:'beatAllT1', chapter:1, name:'初出茅廬', desc:'擊敗幽暗森林全部訓練家', check:()=> TRAINERS2.every(t=>trainersDefeated.has(t.id)), progress:()=> `${TRAINERS2.filter(t=>trainersDefeated.has(t.id)).length}/${TRAINERS2.length}` },
+  { id:'beatAllT2', chapter:1, name:'初出茅廬',     desc:'擊敗幽暗森林全部訓練家', check:()=> TRAINERS2.every(t=>trainersDefeated.has(t.id)), progress:()=> `${TRAINERS2.filter(t=>trainersDefeated.has(t.id)).length}/${TRAINERS2.length}` },
   { id:'explore2',  chapter:1, name:'探索者',       desc:'抵達幽暗森林', check:()=> visitedMaps.has('map2') },
   { id:'lv10',      chapter:1, name:'升級高手',     desc:'任一隊員等級達到10', check:()=> party.some(m=>m.level>=10) },
   
-  // --- 第二章任務 ---
- { id:'catch1',    chapter:2, name:'新夥伴',     desc:'捕捉一隻怪物', check:()=> dex.size>=1 },
+  // --- 第二章 (加入聖火A) ---
+  { id:'catch1',    chapter:2, name:'新夥伴',       desc:'捕捉一隻怪物', check:()=> dex.size>=1 },
   { id:'explore3',  chapter:2, name:'探索者',       desc:'抵達地下洞窟', check:()=> visitedMaps.has('map3') },
-  { id:'beatAllT3', chapter:2, name:'洞窟霸主', desc:'擊敗洞窟北側全部訓練家', check:()=> TRAINERS4.every(t=>trainersDefeated.has(t.id)), progress:()=> `${TRAINERS4.filter(t=>trainersDefeated.has(t.id)).length}/${TRAINERS4.length}` },
-  {id:'dex3',chapter:2,name:'冒險筆記-1',desc:'遇過8種不同怪物',check: () => seenDex.size >= 8},
-  { id: 'rich_boy3', chapter:2, name: '冒險資金', desc: '身上累積超過 500 金幣', check: () => GameState.player.coins >= 500, progress: () => `${Math.min(GameState.player.coins, 500)}/500` },// 顯示進度
+  { id:'beatAllT3', chapter:2, name:'洞窟霸主',     desc:'擊敗洞窟北側全部訓練家', check:()=> TRAINERS4.every(t=>trainersDefeated.has(t.id)), progress:()=> `${TRAINERS4.filter(t=>trainersDefeated.has(t.id)).length}/${TRAINERS4.length}` },
+  { id:'dex3',      chapter:2, name:'冒險筆記-1',   desc:'遇過8種不同怪物', check:()=> seenDex.size >= 8 },
+  { id:'rich_boy3', chapter:2, name:'冒險資金',     desc:'身上累積超過 500 金幣', check:()=> GameState.player.coins >= 500, progress:()=> `${Math.min(GameState.player.coins, 500)}/500` },
+  { id:'q_fireA',   chapter:2, name:'神秘火種',     desc:'(隱藏獎勵) 完成第二章探索，領取不滅聖火A', check:()=> visitedMaps.has('map3') && seenDex.size >= 8, onClaim:()=> { GameState.inventory.fa = 1; toast('🔥 獲得不滅聖火A！'); SaveManager.save(); } },
 
-  {id:'item4',chapter:3,name:'保心安',desc:'購買五瓶藥水',check: () => (GameState.inventory.potion || 0) >= 5},
-  {id: 'win20', chapter: 3,  name: '勇士', desc: '累積戰勝 20 場戰鬥 (含野生與訓練家)', check: () => (GameState.player.totalWins || 0) >= 20,  progress: () => `${Math.min((GameState.player.totalWins || 0), 20)}/20`  },
-  { id: 'catch_ice',chapter: 3,name: '冰系專家', desc: '捕捉任意一隻冰屬性怪物',check: () => [...dex].some(id => {const sp = SPECIES.find(s => s.id === id);return sp && sp.type === 'ice';  })}, 
-  {id: 'step1000',chapter: 3,name: '徒步旅行家',desc: '累積在地圖上移動 1000 步',check: () => (GameState.player.totalSteps || 0) >= 1000, progress: () => `${Math.min(GameState.player.totalSteps || 0, 1000)}/1000`   },
-  { id: 'first_trade', chapter:3, name: '等價交換', desc: '與怪物商人進行一次交易 (換金幣、糖果或怪獸皆可)', check: () => !!GameState.player.hasTraded },
-  // 👇 新增：累積賺取金幣任務 (不受花費影響)
+  // --- 第三章 ---
+  { id:'item4',     chapter:3, name:'保心安',       desc:'購買五瓶藥水', check:()=> (GameState.inventory.potion || 0) >= 5 },
+  { id:'win20',     chapter:3, name:'勇士',         desc:'累積戰勝 20 場戰鬥', check:()=> (GameState.player.totalWins || 0) >= 20, progress:()=> `${Math.min((GameState.player.totalWins || 0), 20)}/20` },
+  { id:'catch_ice', chapter:3, name:'冰系專家',     desc:'捕捉任意一隻冰屬性怪物', check:()=> [...dex].some(id=> { const sp = SPECIES.find(s=>s.id===id); return sp && sp.type==='ice'; }) }, 
+  { id:'step1000',  chapter:3, name:'徒步旅行家',   desc:'累積在地圖上移動 1000 步', check:()=> (GameState.player.totalSteps || 0) >= 1000, progress:()=> `${Math.min(GameState.player.totalSteps || 0, 1000)}/1000` },
+  { id:'first_trade',chapter:3,name:'等價交換',     desc:'與怪物商人進行一次交易', check:()=> !!GameState.player.hasTraded },
 
-  {id:'shop5',chapter:4,name:'上裝備',desc:'購買力量護符',check:()=>(GameState.inventory.atkCharm||0)>=1}, 
-  { id: 'rich_boy5', chapter:4, name: '第一桶金', desc: '身上累積超過 1500 金幣', check: () => GameState.player.coins >= 1500, progress: () => `${Math.min(GameState.player.coins, 1500)}/1500` },// 顯示進度
-  {id: 'win100', chapter: 4,  name: '慶百勝', desc: '累積戰勝 100 場戰鬥 (含野生與訓練家)', check: () => (GameState.player.totalWins || 0) >= 100,  progress: () => `${Math.min((GameState.player.totalWins || 0), 100)}/100`  },
+  // --- 第四章 ---
+  { id:'shop5',     chapter:4, name:'上裝備',       desc:'購買力量護符', check:()=>(GameState.inventory.atkCharm||0)>=1 }, 
+  { id:'rich_boy5', chapter:4, name:'第一桶金',     desc:'身上累積超過 1500 金幣', check:()=> GameState.player.coins >= 1500, progress:()=> `${Math.min(GameState.player.coins, 1500)}/1500` },
+  { id:'win100',    chapter:4, name:'慶百勝',       desc:'累積戰勝 100 場戰鬥', check:()=> (GameState.player.totalWins || 0) >= 100, progress:()=> `${Math.min((GameState.player.totalWins || 0), 100)}/100` },
   { id:'catch3',    chapter:4, name:'小小收藏家',   desc:'捕捉3種不同的怪物', check:()=> dex.size>=3, progress:()=> `${Math.min(dex.size,3)}/3` },
-  
-  { id:'lv20',      chapter:5, name:'成熟熟成', desc:'任一隊員等級達到20', check:()=> party.some(m=>m.level>=20) },
-  { id: 'catch_thun',chapter:5,name: '行動充電', desc: '捕捉任意一隻雷屬性怪物',check: () => [...dex].some(id => {const sp = SPECIES.find(s => s.id === id);return sp && sp.type === 'thunder';  })}, 
-   {id: 'earn5000', chapter: 5, name: '賞金獵人', desc: '歷史累積賺取 5000 金幣', check: () => (GameState.player.totalEarnedCoins || 0) >= 5000, progress: () => `${Math.min(GameState.player.totalEarnedCoins || 0, 5000)}/5000` },
-   { id: 'partner_bond', chapter: 5,name: '心靈相通',desc: '將任意一隻怪物的親密度培養至「拍檔」階段 (161點以上)',check: () => party.some(m => (m.bond || 0) >= 161) || storageBox.some(m => (m.bond || 0) >= 161)   },
+  { id:'dex6',      chapter:4, name:'冒險筆記-2',   desc:'遇過24種不同怪物', check:()=> seenDex.size >= 24 },
 
-  {id:'shop7',chapter:6,name:'購買伴手禮',desc:'購買大師護符',check:()=>(GameState.inventory.masterCharm||0)>=1}, 
-  { id: 'catch_fire',chapter:6,name: '紀念捕捉', desc: '捕捉任意一隻火屬性怪物',check: () => [...dex].some(id => {const sp = SPECIES.find(s => s.id === id);return sp && sp.type === 'fire';  })}, 
-  { id: 'explore_fire',chapter:6,name: '抵達景點', desc: '抵達熾熱山谷 (map10)', check: () => visitedMaps.has('map10') },
-  { id:'beatAllT6', chapter:6, name:'在地交流', desc:'擊敗中央廣場全部訓練家', check:()=> TRAINERS9.every(t=>trainersDefeated.has(t.id)), progress:()=> `${TRAINERS9.filter(t=>trainersDefeated.has(t.id)).length}/${TRAINERS9.length}` },
+  // --- 第五章 ---
+  { id:'lv20',      chapter:5, name:'成熟熟成',     desc:'任一隊員等級達到20', check:()=> party.some(m=>m.level>=20) },
+  { id:'catch_thun',chapter:5, name:'行動充電',     desc:'捕捉任意一隻雷屬性怪物', check:()=> [...dex].some(id=> { const sp = SPECIES.find(s=>s.id===id); return sp && sp.type==='thunder'; }) }, 
+  { id:'earn5000',  chapter:5, name:'賞金獵人',     desc:'歷史累積賺取 5000 金幣', check:()=> (GameState.player.totalEarnedCoins || 0) >= 5000, progress:()=> `${Math.min(GameState.player.totalEarnedCoins || 0, 5000)}/5000` },
+  { id:'partner_bond',chapter:5,name:'心靈相通',    desc:'將任意一隻怪物的親密度培養至「拍檔」', check:()=> party.some(m=> (m.bond || 0) >= 161) || storageBox.some(m=> (m.bond || 0) >= 161) },
+  { id:'lv25',      chapter:5, name:'訓練有成',     desc:'任一隊員等級達到25', check:()=> party.some(m=>m.level>=25) },
 
+  // --- 第六章 ---
+  { id:'shop7',     chapter:6, name:'購買伴手禮',   desc:'購買大師護符', check:()=>(GameState.inventory.masterCharm||0)>=1 }, 
+  { id:'catch_fire',chapter:6, name:'紀念捕捉',     desc:'捕捉任意一隻火屬性怪物', check:()=> [...dex].some(id=> { const sp = SPECIES.find(s=>s.id===id); return sp && sp.type==='fire'; }) }, 
+  { id:'explore_fire',chapter:6,name:'抵達景點',    desc:'抵達熾熱山谷 (map10)', check:()=> visitedMaps.has('map10') },
+  { id:'beatAllT6', chapter:6, name:'在地交流',     desc:'擊敗中央廣場全部訓練家', check:()=> TRAINERS9.every(t=>trainersDefeated.has(t.id)), progress:()=> `${TRAINERS9.filter(t=>trainersDefeated.has(t.id)).length}/${TRAINERS9.length}` },
+  { id:'dex6_2',    chapter:6, name:'冒險筆記-3',   desc:'遇過36種不同怪物', check:()=> seenDex.size >= 36 },
 
-  { id: 'explore_sea',chapter: 7,name: '航向大海', desc: '抵達蔚藍海域 (map12)', check: () => visitedMaps.has('map12') },
-  { id: 'catch_water',chapter: 7,name: '水系專家', desc: '捕捉任意一隻水屬性怪物',check: () => [...dex].some(id => {const sp = SPECIES.find(s => s.id === id);return sp && sp.type === 'water';  })}, 
-   { id: 'trial_dragon', chapter:7, name: '海神試煉', desc: '在海神遺跡最深處擊敗始源龍 (打贏後可在此領取神獸)', check: () => trainersDefeated.has('boss_origindra'), 
-    isClaimed: () => dex.has('96'), 
+  // --- 第七章 (神獸海神 + 充能閘門A) ---
+  { id:'explore_sea',chapter:7, name:'航向大海',    desc:'抵達蔚藍海域 (map12)', check:()=> visitedMaps.has('map12') },
+  { id:'catch_water',chapter:7, name:'水系專家',    desc:'捕捉任意一隻水屬性怪物', check:()=> [...dex].some(id=> { const sp = SPECIES.find(s=>s.id===id); return sp && sp.type==='water'; }) }, 
+  { id:'q_thunderA', chapter:7, name:'古代遺物',    desc:'(隱藏獎勵) 探索海域領取充能核心A', check:()=> visitedMaps.has('map12'), onClaim:()=> { GameState.inventory.ta = 1; toast('⚡ 獲得充能核心A！'); SaveManager.save(); } },
+  { 
+    id: 'trial_dragon', chapter:7, name: '海神試煉', desc: '完成海神遺跡的謎題並擊退強敵，獲得深淵海神 (水)', 
+    check: () => trainersDefeated.has('boss_seagod'), // 假設你在 map16 設定的 boss id
+    isClaimed: () => dex.has('92'), // 假設深淵海神的圖鑑 ID 是 92
     onClaim: () => {
-      const dest = addToPartyOrStorage(makeMonster('96', 45));
-      dex.add('96');
-      seenDex.add('96');
-      updateHud();
-      SaveManager.save();
-      toast(dest === 'party' ? '✨ 始源龍加入了隊伍！' : '✨ 始源龍已送往倉庫保管！');
+      const dest = addToPartyOrStorage(makeMonster('92', 40));
+      dex.add('92'); seenDex.add('92'); updateHud(); SaveManager.save();
+      toast(dest === 'party' ? '🌊 深淵海神加入了隊伍！' : '🌊 深淵海神已送往倉庫！');
     }
   },
 
-    { id: 'rich_boy8', chapter:8, name: '富翁', desc: '身上累積超過 3500 金幣', check: () => GameState.player.coins >= 3500, progress: () => `${Math.min(GameState.player.coins, 3500)}/3500` },// 顯示進度
-    {id: 'win200', chapter: 8,  name: '慶二百勝', desc: '累積戰勝 200 場戰鬥 (含野生與訓練家)', check: () => (GameState.player.totalWins || 0) >= 200,  progress: () => `${Math.min((GameState.player.totalWins || 0), 200)}/200`  },
+  // --- 第八章 ---
+  { id:'rich_boy8', chapter:8, name:'富翁',         desc:'身上累積超過 3500 金幣', check:()=> GameState.player.coins >= 3500, progress:()=> `${Math.min(GameState.player.coins, 3500)}/3500` },
+  { id:'win200',    chapter:8, name:'慶二百勝',     desc:'累積戰勝 200 場戰鬥', check:()=> (GameState.player.totalWins || 0) >= 200, progress:()=> `${Math.min((GameState.player.totalWins || 0), 200)}/200` },
+  { id:'lv30',      chapter:8, name:'三十而立',     desc:'任一隊員等級達到30', check:()=> party.some(m=>m.level>=30) },
+  { id:'explore_gra',chapter:8, name:'旅程尾聲',    desc:'抵達大草原-南 (map22)', check:()=> visitedMaps.has('map22') },
+  { id:'explorer_15', chapter:8, name:'世界旅人', desc:'探索超過 15 個不同的區域(地圖)', check:()=> visitedMaps.size >= 15, progress:()=> `${Math.min(visitedMaps.size, 15)}/15` },
 
-  { id: 'explore_grass',chapter:6,name: '旅程尾聲', desc: '抵達大草原-南 (map22)', check: () => visitedMaps.has('map22') },
-
-
-    { id:'seeAll', chapter:10, name:'圖鑑達人', desc:'遇過除了神獸以外的所有怪物', check:()=> seenDex.size>=QUEST_NON_LEGENDARY_COUNT, progress:()=> `${Math.min(seenDex.size,QUEST_NON_LEGENDARY_COUNT)}/${QUEST_NON_LEGENDARY_COUNT}` },
-    {id:'shop10',chapter:10,name:'堅毅之盾',desc:'購買鐵壁盾',check:()=>(GameState.inventory.ironShield||0)>=1},
-    { id:'lv30',   chapter:10, name:'戰力十足',     desc:'任一隊員等級達到30', check:()=> party.some(m=>m.level>=30) },
-    { id: 'rich_boy9', chapter:10, name: '富豪', desc: '身上累積超過 5500 金幣', check: () => GameState.player.coins >= 5500, progress: () => `${Math.min(GameState.player.coins, 5500)}/5500` },// 顯示進度
-  {id: 'step8888',chapter: 10,name: '千里之行',desc: '累積在地圖上移動 8888 步',check: () => (GameState.player.totalSteps || 0) >= 8888, progress: () => `${Math.min(GameState.player.totalSteps || 0, 8888)}/8888` },
-
+  // --- 第九章 ---
+  { id:'step88',    chapter:9, name:'百聞不如一見', desc:'累積在地圖上移動 999 步', check:()=> (GameState.player.totalSteps || 0) >= 999, progress:()=> `${Math.min(GameState.player.totalSteps || 0, 999)}/999` },
+  { id:'partner_b9',chapter:9, name:'團隊',         desc:'將任意五隻怪物的親密度培養至「拍檔」', check:()=> party.filter(m=> (m.bond || 0) >= 161).length + storageBox.filter(m=> (m.bond || 0) >= 161).length >= 5 },
+  { id:'elite_squad', chapter:9, name:'精銳小隊', desc:'隊伍中有 3 隻等級達到 30 以上的怪物', check:()=> party.filter(m => m.level >= 30).length >= 3 },
+{ id:'earn10k', chapter:9, name:'萬金戶', desc:'歷史累積賺取 10000 金幣', check:()=> (GameState.player.totalEarnedCoins || 0) >= 10000, progress:()=> `${Math.min(GameState.player.totalEarnedCoins || 0, 10000)}/10000` },
+{ id:'catch40', chapter:9, name:'生態大師', desc:'圖鑑中成功捕捉 20 隻不同的怪物', check:()=> dex.size >= 20, progress:()=> `${Math.min(dex.size, 20)}/20` },
+  // --- 第十章 (神機與最終圖鑑) ---
+  { id:'seeAll',    chapter:10, name:'圖鑑達人',    desc:'遇過除了神獸以外的所有怪物', check:()=> seenDex.size>=QUEST_NON_LEGENDARY_COUNT, progress:()=> `${Math.min(seenDex.size,QUEST_NON_LEGENDARY_COUNT)}/${QUEST_NON_LEGENDARY_COUNT}` },
+  { id:'shop10',    chapter:10, name:'堅毅之盾',    desc:'購買鐵壁盾', check:()=>(GameState.inventory.ironShield||0)>=1 },
+  { id:'lv40',      chapter:10, name:'戰力十足',    desc:'任一隊員等級達到40', check:()=> party.some(m=>m.level>=40) },
+  { id:'rich_boy9', chapter:10, name:'富豪',        desc:'身上累積超過 5500 金幣', check:()=> GameState.player.coins >= 5500, progress:()=> `${Math.min(GameState.player.coins, 5500)}/5500` },
+  { id:'step8888',  chapter:10, name:'千里之行',    desc:'累積移動 8888 步', check:()=> (GameState.player.totalSteps || 0) >= 8888, progress:()=> `${Math.min(GameState.player.totalSteps || 0, 8888)}/8888` },
 ];
-
 // 把兩章的名稱合併在同一個物件裡 (注意第二章的數字要用 2)
 const CHAPTER_NAMES = { 
   1: 'CHAPTER-1・新手之路', 
   2: 'CHAPTER-2・洞穴探險',
   3:'CHAPTER-3・登上雪山',
-  4:'CHAPTER-4・攻略迷宮',
-  5:'CHAPTER-5・機械基地',
+  4:'CHAPTER-4・機械基地',
+  5:'CHAPTER-5・攻略迷宮',
   6:'CHAPTER-6・熔岩觀光',
   7: 'CHAPTER-7・水上之路',
-  8:'CHAPTER-8・迷霧林徑',
-  9:'CHAPTER-9・菁英訓練',
+  8:'CHAPTER-8・菁英訓練',
+  9:'CHAPTER-9・迷霧林徑',
   10:'CHAPTER-10・頂尖冒險者',
 };
 // =========================================================
@@ -5060,6 +5626,91 @@ function renderQuestScreen(){
     list.appendChild(card);
   });
 }
+// ==========================================
+// 🗺️ 渲染世界地圖介面
+// ==========================================
+function renderWorldMapScreen() {
+    const gridEl = document.getElementById('worldMapGrid');
+    const legendEl = document.getElementById('worldMapLegend');
+    gridEl.innerHTML = '';
+    legendEl.innerHTML = '';
+
+    // 判斷傳送是否解鎖
+    const ch9Done = typeof QUESTS !== 'undefined' && QUESTS.filter(q => q.chapter === 9).every(q => q.check());
+    const tpTargets = ['map1', 'map5', 'map7', 'map12', 'map23'];
+
+    // 依照你提供的圖片排列的 24 宮格 (4x6)
+    const layout = [
+        17, 18,  8, 10,
+        19, 20,  7,  9,
+         6,  5,  4, 11,
+         1,  2,  3, 12,
+        21, 23, 15, 13,
+        22, 24, 16, 14
+    ];
+
+    // 數字與 mapId 對照表
+    const numToMap = {
+        1:'map1', 2:'map2', 3:'map3', 4:'map4', 5:'map5', 6:'map6_1',
+        7:'map7', 8:'map8', 9:'map9', 10:'map10', 11:'map11', 12:'map12',
+        13:'map13', 14:'map14', 15:'map15', 16:'map16', 17:'map17', 18:'map18',
+        19:'map19', 20:'map20', 21:'map21', 22:'map22', 23:'map23', 24:'map24'
+    };
+
+    // 1. 繪製上方網格
+    layout.forEach(num => {
+        const mapId = numToMap[num];
+        const isVisited = GameState.world.visitedMaps.has(mapId) || (mapId==='map6_1' && GameState.world.visitedMaps.has('map6_2'));
+        const isTeleport = ch9Done && tpTargets.includes(mapId) && isVisited;
+        const isCurrent = GameState.player.mapId === mapId || (mapId==='map6_1' && GameState.player.mapId==='map6_2');
+
+        const cell = document.createElement('div');
+        cell.className = 'mapGridCell' + (isVisited ? ' visited' : '') + (isTeleport ? ' teleport' : '') + (isCurrent ? ' current' : '');
+        
+        // 內容：有去過才顯示數字，沒去過顯示 ?
+        if (isVisited) {
+            if (isTeleport && !isCurrent) {
+                cell.innerHTML = `<div>${num}</div><div style="font-size:10px; margin-top:2px;">✈️</div>`;
+                cell.onclick = () => {
+                    closeOverlays();
+                    switchMap(mapId, 2, 2);
+                };
+            } else if (isCurrent) {
+                cell.innerHTML = `<div>${num}</div><div style="font-size:9px; margin-top:2px; font-weight:normal;">(目前位置)</div>`;
+            } else {
+                cell.textContent = num;
+            }
+        } else {
+            cell.textContent = '?';
+        }
+
+        gridEl.appendChild(cell);
+    });
+
+    // 2. 繪製下方圖例對照表 (1 ~ 24)
+    for (let i = 1; i <= 24; i++) {
+        const mapId = numToMap[i];
+        const isVisited = GameState.world.visitedMaps.has(mapId) || (mapId==='map6_1' && GameState.world.visitedMaps.has('map6_2'));
+        
+        // 抓取地圖名稱，若是 map6_1 特別處理一下名稱
+        let mapName = '???';
+        if (isVisited) {
+            mapName = (mapId === 'map6_1') ? '雪山步道/北峰' : (WORLDS[mapId]?.name || '未知區域');
+        }
+        
+        const isCurrent = GameState.player.mapId === mapId || (mapId==='map6_1' && GameState.player.mapId==='map6_2');
+        
+        const legItem = document.createElement('div');
+        legItem.textContent = `${i.toString().padStart(2, '0')}: ${mapName}`;
+        
+        // 目前位置標紅高亮
+        if (isCurrent) {
+            legItem.style.color = '#e94560';
+            legItem.style.fontWeight = 'bold';
+        }
+        legendEl.appendChild(legItem);
+    }
+}
 function renderShopScreen(){
   document.getElementById('shopCoins').textContent = `目前金幣:💰 ${GameState.player.coins}`;
  // ... (保留前面的 function 宣告與 shopCoins 更新) ...
@@ -5079,16 +5730,22 @@ function renderShopScreen(){
   consumeHeader.textContent = '── 消耗品 ──';
   list.appendChild(consumeHeader);
   
-  // 🌟 只渲染不是 tm_ 開頭的道具
+// 🌟 只渲染不是 tm_ 開頭的道具
   Object.entries(ITEMS).filter(([id]) => !id.startsWith('tm_')).forEach(([id,item])=>{
     if (item.unlockCondition && !item.unlockCondition()) return;
     const card = document.createElement('div');
     card.className='shopCard';
-    card.innerHTML = `<div><b>${item.name}</b><small>${item.desc}</small></div>`;
+    
+    // 🌟 新增判斷：取得目前擁有數量與等級上限
+    const currentOwned = GameState.inventory[id] || 0;
+    const isMaxed = item.maxBuy && currentOwned >= item.maxBuy;
+    const lvText = item.maxBuy ? ` (Lv.${currentOwned}/${item.maxBuy})` : '';
+    
+    card.innerHTML = `<div><b>${item.name}</b><span style="color:var(--gold);">${lvText}</span><small>${item.desc}</small></div>`;
     const btn = document.createElement('button');
     btn.className='actBtn';
-    btn.textContent = `💰${item.price} 購買`;
-    btn.disabled = GameState.player.coins < item.price;
+    btn.textContent = isMaxed ? '已達上限' : `💰${item.price} 購買`;
+    btn.disabled = GameState.player.coins < item.price || isMaxed;
     btn.onclick = ()=>{
       if(GameState.player.coins < item.price) return;
       GameState.player.coins -= item.price;
@@ -5097,7 +5754,6 @@ function renderShopScreen(){
     };
     card.appendChild(btn); list.appendChild(card);
   });
-
   // --- 🌟 技能秘笈區 ---
   const manualHeader = document.createElement('div');
   manualHeader.style.cssText='font-size:11px;color:#9aa5ce;margin:10px 0 4px;';
@@ -5337,8 +5993,15 @@ function renderBagScreen(){
     const btn = document.createElement('button');
     btn.className='actBtn';
     btn.textContent='使用';
-    btn.onclick = ()=> openBagTargetPicker(id);
-    card.appendChild(btn);
+btn.onclick = () => {
+      // 🌟 加入免目標道具 (如地圖) 的判斷
+      if (item.noTarget) {
+          item.use();
+      } else {
+          openBagTargetPicker(id);
+      }
+    };
+        card.appendChild(btn);
     list.appendChild(card);
   });
 }
@@ -5895,13 +6558,32 @@ function revealLegendary(){
 function generateIV(){
   return (Math.random()*0.1) - 0.05; // -5% ~ +5%,交換當下產生並記錄
 }
-function computeStats(sp, level, iv){
-  const mult = (iv!=null) ? (1+iv) : (0.95 + Math.random()*0.1); // 有記錄的個體值就固定用它,沒有就每次隨機浮動
-  return {
-    maxHp: Math.round((sp.baseHp + level*4.2) * mult),
-    atk:   Math.round((sp.baseAtk + level*1.3) * mult),
-    def:   Math.round((sp.baseDef + level*1.1) * mult),
-  };
+// ==========================================
+// 🌟 1. 親密度階級判定
+// ==========================================
+function getBondTier(bond) {
+    if (!bond || bond <= 60) return 0;
+    if (bond <= 120) return 1;
+    if (bond <= 160) return 2;
+    return 3;
+}
+
+// ==========================================
+// 🌟 2. 數值計算 (支援木系與無系血量共鳴)
+// ==========================================
+function computeStats(sp, level, iv, bond = 0){
+    const mult = (iv!=null) ? (1+iv) : (0.95 + Math.random()*0.1);
+    let hpMult = 1.0;
+    const tier = getBondTier(bond);
+    
+    if (sp.type === 'wood') hpMult += 0.05 * tier; // 木系最高 +15% HP
+    if (sp.type === 'none' && tier === 3) hpMult += 0.05; // 無系拍檔 +5% HP
+
+    return {
+        maxHp: Math.round((sp.baseHp + level*4.2) * mult * hpMult),
+        atk:   Math.round((sp.baseAtk + level*1.3) * mult),
+        def:   Math.round((sp.baseDef + level*1.1) * mult),
+    };
 }
 // 🌟 檢查玩家是否已經擁有該怪獸 (防重複神獸)
 function hasMonster(speciesId) {
@@ -5911,8 +6593,8 @@ function hasMonster(speciesId) {
 const MOOD_META = {
     'normal': { name: '普通', icon: '🙂', color: '#9aa5ce', desc: '心情平穩' },
     'hungry': { name: '飢餓', icon: '🤤', color: '#ffb347', desc: '食物友好度加倍' },
-    'want_fight': { name: '想戰鬥', icon: '😠', color: '#ff6b4a', desc: '戰勝友好度加倍' },
-    'want_fight_2': { name: '視死如歸', icon: '👿', color: '#8a5cff', desc: '陣亡不扣友好度' }
+    'want_fight': { name: '好學', icon: '😠', color: '#ff6b4a', desc: '戰勝友好度加倍' },
+    'want_fight_2': { name: '好戰', icon: '👿', color: '#8a5cff', desc: '陣亡不扣友好度' }
 };
 
 // 🌟 判斷親密度階級的文字轉換工具 (加入愛心與王冠)
@@ -6181,14 +6863,16 @@ const WeatherManager = {
             return (hash % 100 < 65) ? 'pitchDark' : 'fog'; // 洞窟與迷宮
         }
         if (['map15', 'map16', 'map6_1', 'map6_2'].includes(mapId)) {
-            return (hash % 100 < 70) ? 'snow' : 'windy'; // 雪山與冰海
+            return (hash % 100 < 70) ? 'snow' : 'windy'; // 雪山與冰海-雪
         }
         if (['map12', 'map13', 'map14'].includes(mapId)) {
-            return (hash % 100 < 40) ? 'rain' : 'harshSun'; // 一般海域
+            return (hash % 100 < 40) ? 'rain' : 'harshSun'; // 一般海域-雨
         }
         if (['map9', 'map10'].includes(mapId)) {
-            return (hash % 100 < 50) ? 'sunny' : 'harshSun'; // 廣場與火山
+            return (hash % 100 < 50) ? 'sunny' : 'harshSun'; // 廣場與火山-晴
         }
+        if (mapId === 'map2') return 'fog'; // 迷霧高地永遠是霧
+
         if (mapId === 'map21') return 'fog'; // 迷霧高地永遠是霧
 
         // 預設 (包含大草原等)：晴/陰/雨/沙暴 隨機循環
@@ -6591,7 +7275,17 @@ const MOVE_POOL = {
   callSnow:     { name:'祈雪', power:0, acc:0.5, typeMode:'none', setWeather:'snow', maxUses:3 },
   callSand:     { name:'揚沙', power:0, acc:0.5, typeMode:'none', setWeather:'sandstorm', maxUses:3 },
   callDark:     { name:'吞噬之暗', power:0, acc:0.5, typeMode:'none', setWeather:'pitchDark', maxUses:3 },
-
+ 
+  counter: { name:'反擊', power:0, acc:1.0, typeMode:'none', counterPct:0.6 },
+  guard: { name:'守勢', power:0, acc:1.0, typeMode:'none', damageReduction:0.5 },
+  charge: { name:'蓄力', power:0, acc:1.0, typeMode:'none', setCharge:true },
+  revenge: { name:'復仇', power:1.0, acc:1.0, typeMode:'none', revengePower:2.0 },
+  lastStand: { name:'絕境反擊', power:1.0, acc:1.0, typeMode:'none', lowHpPower:true },
+  taunt: { name:'挑釁', power:0, acc:0.9, typeMode:'none', tauntTurns:2 },
+  leechSeed: { name:'寄生種子', power:0, acc:0.85, typeMode:'none', applyLeech:{ turns:4, pct:0.12 } },
+  sacrifice: { name:'生命獻祭', power:0, acc:1.0, typeMode:'none', sacrificePct:0.3, nextAttackMultiplier:2.0 },
+  purify: { name:'淨化', power:0, acc:1.0, typeMode:'none', cureStatus:true },
+  swapStats: { name:'能力交換', power:0, acc:0.9, typeMode:'none', swapStats:true },
   // 🐉 神獸專屬究極大招 (必定命中/100%，自帶改變天氣或特效，每場限用 3 次)
   originBurst:  { name:'始源爆發', power:2.5, acc:1.0, typeMode:'self', setWeather:'sunny', maxUses:3 }, // 始源龍 (94)
   solarFlare:   { name:'日珥耀斑', power:2.5, acc:1.0, typeMode:'fire', setWeather:'harshSun', maxUses:3 }, // 日珥神龍 (90)
@@ -6678,6 +7372,49 @@ const LEARNSET = [
   { level: 15, moveId: 'thunderShift', speciesFilter: '31' }, // Sparkdesk 專屬雷屬化
   { level: 18, moveId: 'escape', speciesFilter: '62' }, // 羽風 Windra 專屬金蟬脫殼
   { level: 18, moveId: 'escape', speciesFilter: '44' }, // 疾風蜓 Drafly 專屬金蟬脫殼
+  // === 🛡️ 新增戰術與防禦技能 (Lv 14 ~ 32) ===
+
+  // 1. 守勢 (guard) - 適合厚重的屬性與盾牌怪獸
+  { level: 14, moveId: 'guard', typeFilter: 'earth' },
+  { level: 14, moveId: 'guard', typeFilter: 'water' },
+  { level: 14, moveId: 'guard', speciesFilter: '56' }, // 守護盾 Aegishield
+  { level: 14, moveId: 'guard', speciesFilter: '75' }, // 疊塊獸 Blockon
+
+  // 2. 寄生種子 (leechSeed) - 經典的木屬性專屬干擾技
+  { level: 15, moveId: 'leechSeed', typeFilter: 'wood' },
+
+  // 3. 淨化 (purify) - 適合光潔或水潤的屬性
+  { level: 19, moveId: 'purify', typeFilter: 'light' },
+  { level: 19, moveId: 'purify', typeFilter: 'water' },
+
+  // 4. 挑釁 (taunt) - 適合狡猾的屬性與特定怪獸
+  { level: 21, moveId: 'taunt', typeFilter: 'dark' },
+  { level: 21, moveId: 'taunt', typeFilter: 'wind' },
+  { level: 21, moveId: 'taunt', speciesFilter: '72' }, // 妖菇 Mystroom
+
+  // 5. 反擊 (counter) - 適合擅長肉搏的地、無屬性
+  { level: 22, moveId: 'counter', typeFilter: 'earth' },
+  { level: 22, moveId: 'counter', typeFilter: 'none' },
+
+  // 6. 蓄力 (charge) - 【全體通用】所有怪獸到了 Lv.25 都能學會的增傷爆發技
+  { level: 25, moveId: 'charge' },
+
+  // 7. 復仇 (revenge) - 適合具有攻擊性的火、暗屬性
+  { level: 26, moveId: 'revenge', typeFilter: 'fire' },
+  { level: 26, moveId: 'revenge', typeFilter: 'dark' },
+
+  // 8. 能力交換 (swapStats) - 適合神秘的光、風、無屬性
+  { level: 27, moveId: 'swapStats', typeFilter: 'light' },
+  { level: 27, moveId: 'swapStats', typeFilter: 'wind' },
+  { level: 27, moveId: 'swapStats', typeFilter: 'none' },
+
+  // 9. 生命獻祭 (sacrifice) - 適合暗、火屬性，以及會自爆的危險怪獸
+  { level: 28, moveId: 'sacrifice', typeFilter: 'dark' },
+  { level: 28, moveId: 'sacrifice', typeFilter: 'fire' },
+  { level: 28, moveId: 'sacrifice', speciesFilter: '01' }, // Ba-01 電池
+
+  // 10. 絕境反擊 (lastStand) - 【全體通用】作為 Lv.32 的大後期翻盤神技
+  { level: 32, moveId: 'lastStand' },
 ];
 function moveDisplayName(moveId, mon){
   if(moveId==='ultimate') return `${MonsterUtil.species(mon).name.split(' ')[0]}爆擊`;
@@ -6699,14 +7436,20 @@ function resolveMove(moveId, mon){
     selfDebuffStat: def.selfDebuffStat, selfDebuffAmount: def.selfDebuffAmount, 
     recoilPct: def.recoilPct, comboMissPower: def.comboMissPower, accuracyStack: def.accuracyStack,
     firstTurnAcc: def.firstTurnAcc, isEscape: def.isEscape, setWeather: def.setWeather, maxUses: def.maxUses,
-    
-    // 🌟 秘笈專屬的新效果
+       // 🌟 秘笈專屬的新效果
     applyImmunity: def.applyImmunity,
     chanceImmunity: def.chanceImmunity,
     reverseStatsTarget: def.reverseStatsTarget,
     leaveOneHp: def.leaveOneHp,
     needsCharge: def.needsCharge,
     rechargeNextTurn: def.rechargeNextTurn,
+    // 👇 🌟 補上這 10 個新技能專用屬性
+    counterPct: def.counterPct, damageReduction: def.damageReduction,
+    setCharge: def.setCharge, revengePower: def.revengePower,
+    lowHpPower: def.lowHpPower, tauntTurns: def.tauntTurns,
+    applyLeech: def.applyLeech, sacrificePct: def.sacrificePct,
+    nextAttackMultiplier: def.nextAttackMultiplier, cureStatus: def.cureStatus,
+    swapStats: def.swapStats
   };
 }
 function getMoves(mon){
@@ -6799,9 +7542,26 @@ function checkHit(attacker, move, defender) {
 // ==========================================
 function triggerEntryPassives(mon, enemy) {
     const res = runPassiveEvent("onEntry", mon, enemy);
-    return res.messages || []; // 回傳陣列給 Battle UI
-}
+    let msgs = res.messages || [];
 
+    // ⚡ 雷系與 ❄️ 冰系羈絆共鳴
+    const sp = MonsterUtil.species(mon);
+    const tier = getBondTier(mon.bond);
+    if (tier > 0) {
+        if (sp.type === 'thunder') {
+            mon.atkMult = Math.min(3.0, (mon.atkMult || 1) + 0.05 * tier);
+            msgs.push(`⚡ 雷電共鳴！${sp.name} 速度極快，攻擊力提升了！`);
+        }
+        if (sp.type === 'ice') {
+            mon.defMult = Math.min(3.0, (mon.defMult || 1) + 0.05 * tier);
+            msgs.push(`❄️ 堅冰護甲！${sp.name} 凝結冰霜，防禦力提升了！`);
+        }
+    }
+    return msgs;
+}
+// ==========================================
+// 🌟 回合結束特性與狀態清理
+// ==========================================
 function triggerTurnEndPassives(mon) {
     if (mon.hp <= 0) return '';
     let msgs = [];
@@ -6817,15 +7577,34 @@ function triggerTurnEndPassives(mon) {
         }
     }
 
+    // 🌟 新增：寄生種子扣血
+    if (mon.leechTurns > 0) {
+        mon.leechTurns--;
+        const dmg = Math.max(1, Math.round(mon.maxHp * mon.leechPct));
+        mon.hp = Math.max(0, mon.hp - dmg);
+        msgs.push(`🌱 ${MonsterUtil.species(mon).name} 被寄生種子吸取了 ${dmg} 點 HP！`);
+    }
+    
+    // 🌟 新增：挑釁與守勢倒數清理
+    if (mon.tauntTurns > 0) mon.tauntTurns--;
+    mon.guardReduction = null;  // 守勢只維持一回合
+    mon.counterReady = null;    // 反擊架勢也只維持一回合
+
     // 觸發引擎分發
     const res = runPassiveEvent("onTurnEnd", mon);
     if (res.messages && res.messages.length > 0) {
         msgs.push(...res.messages);
     }
-    
-    return msgs.join(' '); // 轉成字串給 log 系統
+    // 💧 水系羈絆共鳴：拍檔階段微幅自癒
+    const sp = MonsterUtil.species(mon);
+    const tier = getBondTier(mon.bond);
+    if (sp.type === 'water' && tier === 3 && mon.hp < mon.maxHp && mon.healBlockTurns === 0) {
+        const heal = Math.max(1, Math.round(mon.maxHp * 0.05));
+        mon.hp = Math.min(mon.maxHp, mon.hp + heal);
+        msgs.push(`💧 源泉滋潤！${sp.name} 受到水之羈絆的治癒，恢復了少許 HP！`);
+    }
+    return msgs.join(' '); 
 }
-
 function triggerDeathPassives(defeated, attacker) {
     if (!attacker || attacker.hp <= 0) return '';
     const res = runPassiveEvent("onFaint", defeated, attacker);
@@ -6849,70 +7628,148 @@ function triggerAfterAttackPassives(attacker, defender, move, hitCtx) {
 // ==========================================
 // 🌟 戰鬥計算引擎 (支援攻擊前屬性變更)
 // ==========================================
+// ==========================================
+// 🌟 戰鬥計算引擎 (支援新技能、羈絆共鳴、特性攔截)
+// ==========================================
 function damageCalc(attacker, move, defender) {
-    // 🌟 無敵判定：如果防禦方處於絕對防禦狀態，強制傷害歸零！
+    // 🛡️ 1. 絕對防禦判定 (秘笈:全面防禦 / 守護打擊)
     if (defender.damageImmunity) {
         defender.damageImmunity = false; // 消耗掉無敵盾
         return { dmg: 0, mult: 1, crit: false, messages: ['🛡️ 絕對防禦擋下了所有的傷害！'] };
     }
 
+    const atkSp = MonsterUtil.species(attacker);
     const defSp = MonsterUtil.species(defender);
+    const atkType = effectiveType(attacker);
     const defType = effectiveType(defender);
     
-    // 📦 1. 打包 Battle Context
+    // 📦 2. 建立 Context
     const ctx = {
         attacker: attacker,
         defender: defender,
         move: move,
-        moveType: move.type, // 👈 將招式屬性獨立出來，開放給特性攔截修改
+        moveType: move.type,
         weather: currentWeather,
-        critRate: 0.08,
+        critRate: 0.08, // 基礎爆擊率 8%
         isCritical: false,
         damage: 0,
         multiplier: 1 
     };
 
-    // 取得基礎數值 (依據原始屬性結算天氣)
+    // 🌤️ 3. 天氣加成
     let weatherAtkMult = 1;
     let weatherDefMult = 1;
-    if(currentWeather){
-        if(currentWeather.id === 'rain'){
-            if(move.type === 'water') weatherAtkMult = 1.5;
-            if(move.type === 'fire') weatherAtkMult = 0.5;
+    if (currentWeather) {
+        if (currentWeather.id === 'rain') {
+            if (ctx.moveType === 'water') weatherAtkMult = 1.5;
+            if (ctx.moveType === 'fire') weatherAtkMult = 0.5;
         }
-        if(currentWeather.id === 'snow' && defType === 'ice'){
-            weatherDefMult = 1.5;
+        if (currentWeather.id === 'harshSun') {
+            if (ctx.moveType === 'fire') weatherAtkMult = 1.5;
+            if (ctx.moveType === 'water' || ctx.moveType === 'ice') weatherAtkMult = 0.5;
+        }
+        if (currentWeather.id === 'snow' && defType === 'ice') weatherDefMult = 1.5;
+        if (currentWeather.id === 'sandstorm' && defType === 'earth') weatherDefMult = 1.5;
+        if (currentWeather.id === 'windy' && ctx.moveType === 'wind') weatherAtkMult = 1.5;
+        if (currentWeather.id === 'radiant') {
+            if (ctx.moveType === 'light') weatherAtkMult = 1.5;
+            if (ctx.moveType === 'dark') weatherAtkMult = 0.5;
+        }
+        if (currentWeather.id === 'pitchDark') {
+            if (ctx.moveType === 'dark') weatherAtkMult = 1.5;
+            if (ctx.moveType === 'light') weatherAtkMult = 0.5;
         }
     }
-    
-    const atkStat = (attacker.atk * (attacker.atkMult||1) * weatherAtkMult);
-    const defStat = (defender.def * (defender.defMult||1) * weatherDefMult);
 
-    // 基礎傷害計算
+    // 🗡️ 4. 基礎攻防計算 (包含能力階級、燒傷)
+    let atkStat = attacker.atk * (attacker.atkMult || 1) * weatherAtkMult;
+    let defStat = defender.def * (defender.defMult || 1) * weatherDefMult;
+    if (attacker.status === 'burn') atkStat *= 0.5; // 燒傷攻擊減半
+
+    // 🎒 裝備加成
+    const heldA = heldItemDef(attacker);
+    if (heldA && heldA.atkMult) atkStat *= heldA.atkMult;
+    if (heldA && heldA.defMult) defStat *= heldA.defMult;
+    
+    const heldD = heldItemDef(defender);
+    if (heldD && heldD.atkMult) atkStat *= heldD.atkMult;
+    if (heldD && heldD.defMult) defStat *= heldD.defMult;
+
+    // 🌟 特性加成 (beforeAttack)
+    const atkRes = runPassiveEvent('beforeAttack', attacker, defender, ctx);
+    
+    // ⚔️ 基礎傷害公式
     ctx.damage = Math.max(1, (atkStat * move.power) - defStat * 0.5);
 
-    // ⚔️ 2. 觸發攻擊方特性 (這時候特性可以修改 ctx.moveType 和 ctx.damage)
-    const atkResult = runPassiveEvent('beforeAttack', attacker, defender, ctx);
+    // 👇 🌟 5. 新技能：傷害加成與減免處理 🌟 👇
+    
+    // (1) 絕境反擊 (lastStand)：HP 越低，威力越高
+    if (move.lowHpPower) {
+        let hpPct = attacker.hp / attacker.maxHp;
+        if (hpPct <= 0.3) ctx.damage *= 2.0;
+        else if (hpPct <= 0.6) ctx.damage *= 1.5;
+    }
 
-    // 🛡️ 3. 觸發防禦方特性
-    const defResult = runPassiveEvent('onDamage', defender, attacker, ctx);
+    // (2) 復仇 (revenge)：上回合受傷，這回合傷害翻倍
+    if (move.revengePower && attacker.tookDamageLastTurn) {
+        ctx.damage *= move.revengePower;
+        attacker.tookDamageLastTurn = false; // 消耗掉復仇標記
+    }
 
-    // 🔄 4. 最關鍵的一步：在特性結算完後，才用「最終屬性」計算相剋倍率！
-    ctx.multiplier = typeMultiplier(ctx.moveType, defType);
+    // (3) 蓄力 / 生命獻祭：消耗標記並放大傷害
+    if (attacker.nextAttackMult) {
+        ctx.damage *= attacker.nextAttackMult;
+        attacker.nextAttackMult = null; 
+    }
 
-    // 🎲 5. 統一在這裡進行爆擊判定
-    ctx.isCritical = Math.random() < ctx.critRate;
-    if (ctx.isCritical) ctx.damage *= 1.5;
+    // (4) 守勢 (guard)：防禦方減免傷害
+    if (defender.guardReduction) {
+        ctx.damage *= (1 - defender.guardReduction);
+    }
 
-    // 結算最終傷害
-    const variance = 0.85 + Math.random() * 0.3; 
-    let finalDmg = Math.max(1, Math.round(ctx.damage * ctx.multiplier * variance));
+    // 👇 🌟 6. 羈絆共鳴：火系增傷、地系減傷、無系均衡 🌟 👇
+    const atkTier = getBondTier(attacker.bond);
+    const defTier = getBondTier(defender.bond);
 
-    return { 
-        dmg: finalDmg, 
-        mult: ctx.multiplier, 
+    // 攻擊方共鳴
+    if (atkTier > 0) {
+        if (atkType === 'fire') ctx.damage *= (1 + 0.05 * atkTier); 
+        if (atkType === 'none' && atkTier === 3) ctx.damage *= 1.05; 
+    }
+    // 防禦方共鳴
+    if (defTier > 0) {
+        if (defType === 'earth') ctx.damage *= (1 - 0.05 * defTier); 
+        if (defType === 'none' && defTier === 3) ctx.damage *= 0.95; 
+    }
+
+    // 🎯 7. 屬性剋制與 STAB (同屬性加成)
+    const mult = typeMultiplier(ctx.moveType, defType);
+    ctx.multiplier = mult;
+    ctx.damage *= mult;
+    if (ctx.moveType === atkType && ctx.moveType !== 'none') ctx.damage *= 1.5;
+
+    // 🔥 8. 會心一擊
+    if (heldA && heldA.critBoost) ctx.critRate += heldA.critBoost;
+    if (Math.random() < ctx.critRate) {
+        ctx.isCritical = true;
+        ctx.damage *= 1.5;
+    }
+
+    // 🎲 9. 傷害浮動 (85% ~ 100%)
+    ctx.damage = Math.floor(ctx.damage * (0.85 + Math.random() * 0.15));
+
+    // 🛡️ 10. 受擊特性 (onDamage)
+    const defRes = runPassiveEvent('onDamage', defender, attacker, ctx);
+
+    // 確保最低傷害為 1
+    ctx.damage = Math.max(1, Math.floor(ctx.damage));
+
+    // 回傳最終結果
+    return {
+        dmg: ctx.damage,
+        mult: ctx.multiplier,
         crit: ctx.isCritical,
-        messages: [...atkResult.messages, ...defResult.messages] 
+        messages: [...(atkRes.messages || []), ...(defRes.messages || [])]
     };
 }
 function effectiveAcc(attacker, move, defender){
@@ -7128,6 +7985,11 @@ document.getElementById('btnCatch').onclick = ()=>{
     const wild = BattleManager.state.enemy;
     let catchChance = Math.min(0.95, 0.15 + (1 - wild.hp/wild.maxHp)*0.75);
     if(MonsterUtil.species(wild).passive==='friendly') catchChance = Math.min(0.95, catchChance + 0.2);
+    // 👇 🌟 新增：捕獲護符的成功率加成 (每一級 +10%)
+    const charmLv = GameState.inventory.catchCharm || 0;
+    if (charmLv > 0) {
+        catchChance = Math.min(0.95, catchChance + (charmLv * 0.10));
+    }
     
     log(`你丟出捕獲珠...(成功率約 ${Math.round(catchChance*100)}%)`);
     const success = Math.random() < catchChance;
@@ -7156,109 +8018,62 @@ document.getElementById('btnRun').onclick = ()=>{
     if(Math.random()<0.85){ log('成功逃跑了!'); setTimeout(()=> BattleManager.endBattle(null), 900); }
     else { log('逃跑失敗!'); setTimeout(enemyTurn, 800); }
 };
-
-document.getElementById('btnParty').onclick = ()=>{
-    const swapListEl = document.getElementById('swapList');
-    swapListEl.innerHTML=''; swapListEl.style.display='flex';
-    document.getElementById('actionGrid').style.display='none';
-    const btns=[];
-    party.forEach((m,i)=>{
-        if(i===GameState.party.activeIndex) return;
-        const sp = MonsterUtil.species(m);
-        const b = document.createElement('button');
-        b.className='actBtn';
-        const fainted = m.hp<=0;
-        b.disabled = fainted;
-        b.textContent = `${sp.name} Lv.${m.level} HP:${m.hp}/${m.maxHp}` + (fainted?' (戰鬥不能)':'');
-        b.onclick = ()=>{ if(!fainted) doSwap(i); };
-        swapListEl.appendChild(b);
-        btns.push(b);
-    });
-    const back = document.createElement('button');
-    back.className='actBtn backBtn'; back.textContent='← 返回';
-    back.onclick = showBattleControls;
-    swapListEl.appendChild(back);
-    btns.push(back);
-    setFocusList(btns, 1);
-};
-function winBattle() { BattleManager.winBattle(); }
-function endBattle(deathMsg) { BattleManager.endBattle(deathMsg); }
-function doSwap(newIndex) { BattleManager.doSwap(newIndex); }
-
-// UI 按鈕事件 (稍微改造一下，透過 BM 取得狀態)
-document.getElementById('btnCatch').onclick = ()=>{
-    if(BattleManager.state.isTrainerBattle){ log('訓練家的怪物不能被捕捉!'); return; }
+// ==========================================
+// 🔄 換人選單 (加入屬性剋制提示)
+// ==========================================
+document.getElementById('btnParty').onclick = () => {
     hideBattleControls();
-    const wild = BattleManager.state.enemy;
-    let catchChance = Math.min(0.95, 0.15 + (1 - wild.hp/wild.maxHp)*0.75);
-    if(MonsterUtil.species(wild).passive==='friendly') catchChance = Math.min(0.95, catchChance + 0.2);
+    const swapListEl = document.getElementById('swapList');
+    swapListEl.innerHTML = ''; 
+    swapListEl.style.display = 'flex';
     
-    log(`你丟出捕獲珠...(成功率約 ${Math.round(catchChance*100)}%)`);
-    const success = Math.random() < catchChance;
+    // 取得當前敵方的屬性
+    const wildType = effectiveType(BattleManager.state.enemy); 
     
-setTimeout(()=>{
-    if(success){
-        const dest = addToPartyOrStorage({...wild});
-        dex.add(wild.speciesId);
-        ensureDailyFresh();
-        dailyProgress.catches++;
-        log(dest==='party'
-            ? `成功捕捉了 ${MonsterUtil.species(wild).name}!牠加入了你的隊伍。`
-            : `成功捕捉了 ${MonsterUtil.species(wild).name}!隊伍已滿(${PARTY_LIMIT}隻),自動送去倉庫保管了。`);
-        updateHud();
-        
-        // ==========================================
-        // 🌟 新增：捕捉後重新判斷光屬性與視野！
-        // 只有當怪獸加入隊伍 (party)、人在迷霧地圖、且原本視野還是 4 的時候才觸發
-        // ==========================================
-        // 🌟 捕捉後重新判斷光屬性與視野 (配合聰明版 VisionManager)
-        // ==========================================
-        if (dest === 'party' && ['map2', 'map21'].includes(GameState.player.mapId) && partyHasType('light')) {
-            // 因為 VisionManager 現在會自己抓半徑，我們只要通知畫面重繪就好！
-            setTimeout(() => {
-                toast('✨ 新加入的光屬性怪獸照亮了前方的濃霧！');
-                drawMap(); 
-            }, 1600); 
-        }
-  // ==========================================
-
-        setTimeout(()=> BattleManager.endBattle(null), 1600);
-    } else {
-        log('野生怪物掙脫了!');
-        setTimeout(enemyTurn, 900);
+    // 篩選出可以戰鬥的隊友
+    const available = party.map((m, i) => ({ m, i })).filter(o => o.m.hp > 0 && o.i !== GameState.party.activeIndex);
+    
+    if (available.length === 0) {
+        log('沒有其他可以戰鬥的隊友了！');
+        setTimeout(showBattleControls, 1000);
+        return;
     }
-}, 700);
-};
-
-document.getElementById('btnRun').onclick = ()=>{
-    if(BattleManager.state.isTrainerBattle){ log('不能從訓練家戰鬥中逃跑!'); return; }
-    hideBattleControls();
-    if(Math.random()<0.85){ log('成功逃跑了!'); setTimeout(()=> BattleManager.endBattle(null), 900); }
-    else { log('逃跑失敗!'); setTimeout(enemyTurn, 800); }
-};
-
-document.getElementById('btnParty').onclick = ()=>{
-    const swapListEl = document.getElementById('swapList');
-    swapListEl.innerHTML=''; swapListEl.style.display='flex';
-    document.getElementById('actionGrid').style.display='none';
-    const btns=[];
-    party.forEach((m,i)=>{
-        if(i===GameState.party.activeIndex) return;
-        const sp = MonsterUtil.species(m);
-        const b = document.createElement('button');
-        b.className='actBtn';
-        const fainted = m.hp<=0;
-        b.disabled = fainted;
-        b.textContent = `${sp.name} Lv.${m.level} HP:${m.hp}/${m.maxHp}` + (fainted?' (戰鬥不能)':'');
-        b.onclick = ()=>{ if(!fainted) doSwap(i); };
-        swapListEl.appendChild(b);
-        btns.push(b);
+    
+    const btns = [];
+    available.forEach(o => {
+        const sp = MonsterUtil.species(o.m);
+        const myType = effectiveType(o.m);
+        
+        // 計算我方打敵方、以及敵方打我方的倍率
+        const atkAdv = typeMultiplier(myType, wildType); 
+        const defAdv = typeMultiplier(wildType, myType); 
+        
+        let advText = '';
+        // 攻擊優勢判定
+        if (atkAdv > 1) advText += '<span style="color:#4caf50;">▲ 攻擊優勢</span> ';
+        else if (atkAdv < 1) advText += '<span style="color:#e94560;">▼ 攻擊劣勢</span> ';
+        
+        // 防禦優勢判定 (對方打我們很痛=劣勢，對方打我們不痛=優勢)
+        if (defAdv < 1) advText += '<span style="color:#4caf50;">🛡️ 防禦優勢</span>';
+        else if (defAdv > 1) advText += '<span style="color:#e94560;">⚠️ 防禦劣勢</span>';
+        
+        const btn = document.createElement('button');
+        btn.className = 'actBtn';
+        btn.style.textAlign = 'left';
+        btn.innerHTML = `<b>${sp.name}</b> Lv.${o.m.level} HP:${o.m.hp}/${o.m.maxHp}<br><span style="font-size:10px;">${advText || '— 屬性平分'}</span>`;
+        btn.onclick = () => doSwap(o.i);
+        
+        swapListEl.appendChild(btn);
+        btns.push(btn);
     });
+    
     const back = document.createElement('button');
-    back.className='actBtn backBtn'; back.textContent='← 返回';
+    back.className = 'actBtn backBtn'; 
+    back.textContent = '← 返回';
     back.onclick = showBattleControls;
     swapListEl.appendChild(back);
     btns.push(back);
+    
     setFocusList(btns, 1);
 };
 // ---------- 雲端存檔(window.storage,跨裝置/跨session保留) ----------
