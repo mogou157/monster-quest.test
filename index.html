@@ -32,10 +32,8 @@
 /* 🌟 放大下方狀態列與提示詞 */
   #hud{ display:flex; gap:16px; margin-top:12px; font-size:16px; color:#9aa5ce; flex-wrap:wrap; justify-content:center; align-items:center; }
   #saveStatus{ color:var(--gold); font-size:16px; }
-  #controls{ margin-top:8px; font-size:14px; color:#666f9e; text-align:center; line-height:1.7; max-width:560px;}
-  kbd{ background:#2a2a4a; border:1px solid #444; border-radius:4px; padding:2px 8px; color:#eaeaea; font-size:14px; }
-  
-   kbd{ background:#2a2a4a; border:1px solid #444; border-radius:4px; padding:2px 8px; color:#eaeaea; font-size:14px; }
+#controls { margin-top:12px; font-size:14px; color:#F0FFFE; text-align:center; line-height:1.8; max-width:680px; }
+kbd { background:#2a2a4a; border:2px solid #666; border-radius:6px; padding:4px 10px; color:#ffffff; font-size:16px; font-weight:bold; box-shadow: 0 2px 0 #111; }  
     .overlay{ position:absolute; inset:0; display:none; flex-direction:column; padding:10px; }
   #battleOverlay{ background:linear-gradient(180deg,#1e2749,#0f1530); }
   .mon-row{ display:flex; justify-content:space-between; align-items:flex-end; flex:1; }
@@ -52,14 +50,14 @@
   .actBtn:disabled{ opacity:.3; cursor:not-allowed; }
   #moveList{ display:none; grid-template-columns:1fr 1fr; gap:6px; }
 /* 🌟 戰鬥中：圖鑑化換人介面 (佔據畫面 3/4) */
-  #swapList{ 
-    display:none; flex-direction:column; gap:8px; 
+#swapList { 
+    display:none; grid-template-columns: 1fr 1fr; gap:8px; /* 使用 grid 切成兩欄 */
     max-height:75vh; height:75vh; 
     overflow-y:auto; width:100%; 
     background:rgba(11, 11, 26, 0.95); padding:10px; border-radius:8px; 
     border:2px solid var(--accent2); z-index:100;
   }
-  .swapCard {
+    .swapCard {
     display:flex; align-items:center; background:var(--panel);
     border:1px solid #2a2a4a; border-radius:6px; padding:8px;
     cursor:pointer; text-align:left; transition:0.2s;
@@ -85,20 +83,23 @@
   .statInfo{ font-size:11px; line-height:1.5; flex:1; }
   .statInfo b{ color:var(--gold); }
   .typeTag{ display:inline-block; font-size:9px; padding:1px 5px; border-radius:3px; margin-left:4px; }
-  .dexGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:4px; }
-  #worldMapOverlay { background:rgba(8,10,26,.97); overflow-y:auto; }
+.dexGrid { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; padding:4px; }
+      #worldMapOverlay { background:rgba(8,10,26,.97); overflow-y:auto; }
   .mapGridCell { background:var(--panel); border:1px solid #2a2a4a; border-radius:6px; padding:10px 0; text-align:center; font-size:16px; font-weight:bold; color:#444; display:flex; flex-direction:column; justify-content:center; align-items:center; transition:0.2s; }
   .mapGridCell.visited { color:var(--text); border-color:#555; }
   .mapGridCell.teleport { cursor:pointer; border-color:var(--accent2); color:var(--accent2); background:#0f202b; box-shadow:0 0 8px rgba(15,155,142,0.4); }
   .mapGridCell.teleport:hover { background:var(--accent2); color:#0b0b1a; }
   .mapGridCell.current { background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:0 0 10px rgba(233,69,96,0.6); }
-  .dexCard{ background:var(--panel); border-radius:6px; padding:6px; text-align:center; border:1px solid #2a2a4a; }
-  .dexCard.locked{ opacity:.35; }
-  .dexCard.seen{ opacity:.65; }
-  .dexCard canvas{ width:40px; height:40px; }
-  .dexCard div{ font-size:9px; margin-top:2px; }
-  .closeHint{ text-align:center; font-size:10px; color:#666f9e; margin-top:8px; }
-  #toast{
+.dexCard { 
+    background:var(--panel); border-radius:6px; padding:4px; 
+    border:1px solid #2a2a4a; 
+    display:flex; align-items:center; gap:6px; text-align:left; 
+  }
+  .dexCard.locked { opacity:.35; }
+  .dexCard.seen { opacity:.65; }
+  .dexCard canvas { width:40px; height:40px; flex-shrink:0; } /* 圖片大小稍微縮小適應四排 */
+  .dexCard div { font-size:10px; margin-top:0; line-height:1.3; word-break:break-all; } /* 字體微調避免跑版 */
+    #toast{
     position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
     background:rgba(0,0,0,.85); color:#fff; padding:10px 24px; border-radius:24px;
     font-size:16px; font-weight:bold; opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap; z-index:9999;
@@ -322,7 +323,7 @@
 
   <div id="startScreen" class="overlay">
     <h2>選擇你的第一隻夥伴</h2>
-    <p>用方向鍵/WASD 或下方虛擬按鍵移動。粉紅磚是怪物中心(回血),黃色磚是商店,彩色NPC是可重複挑戰的訓練家,旋渦磚是傳送點,紫色磚是封印之門(完成所有任務才能開啟),所有NPC都要主動互動觸發。隊伍裡有對應屬性的怪物,就能通過特定地圖機關(例如水屬性可以衝浪過水域)。按 <kbd>B</kbd> 隊伍、<kbd>C</kbd> 圖鑑、<kbd>Q</kbd> 任務、<kbd>E</kbd> 背包、<kbd>N</kbd> 屬性圖、<kbd>T</kbd> 風屬性瞬間移動到最近的怪物中心。戰鬥/隊伍選單可用 <kbd>WASD</kbd>+<kbd>F</kbd> 選擇。</p>
+    <p>方向鍵/WASD 或下方虛擬按鍵移動。粉紅磚:(回血),黃色磚:(商店),彩色NPC:(可重複挑戰的訓練家),旋渦磚:(傳送點),所有NPC都要主動互動觸發。特定地圖機關需要在隊伍中攜帶特定屬性(例如水屬性可以衝浪過水域)。按 <kbd>B</kbd> 隊伍、<kbd>C</kbd> 圖鑑、<kbd>Q</kbd> 任務、<kbd>E</kbd> 背包、<kbd>N</kbd> 屬性圖、<kbd>T</kbd> 風屬性瞬間移動到最近的怪物中心。戰鬥/隊伍選單可用 <kbd>WASD</kbd>+<kbd>F</kbd> 選擇。</p>
     <div class="starterRow" id="starterRow"></div>
   </div>
 
@@ -345,11 +346,16 @@
   <button id="resetBtn">重置進度</button>
 </div>
 <div id="controls">
-  移動 <kbd>↑↓←→</kbd>/<kbd>WASD</kbd> ・ 跑走切換 <kbd>G</kbd> ・狀態 <kbd>B</kbd> ・ 圖鑑 <kbd>C</kbd> ・ 任務 <kbd>Q</kbd> ・ 背包 <kbd>E</kbd> ・ 屬性圖 <kbd>N</kbd> ・ 疾風傳送 <kbd>T</kbd> ・
-  戰鬥/隊伍選單:<kbd>WASD</kbd>移動選取、<kbd>F</kbd>確認 ・
-  深綠色草叢隨機遇敵 ・ 粉紅磚=怪物中心 ・ 黃色磚=商店 ・ 彩色方塊=訓練家 ・ 旋渦磚=傳送點 ・ 紫色磚=封印之門
+  <div style="margin-bottom: 6px;">
+    🎮 <b>操作</b>：移動 <kbd>WASD</kbd> / <kbd>方向鍵</kbd> ｜ 確認 <kbd>F</kbd> ｜ 跑步 <kbd>G</kbd> ｜ 取消/返回 <kbd>ESC</kbd>
+  </div>
+  <div style="margin-bottom: 6px;">
+    🎒 <b>介面</b>：隊伍狀態 <kbd>B</kbd> ｜ 怪物圖鑑 <kbd>C</kbd> ｜ 任務 <kbd>Q</kbd> ｜ 背包 <kbd>E</kbd> ｜ 屬性圖 <kbd>N</kbd> ｜ 疾風傳送 <kbd>T</kbd>
+  </div>
+  <div style="color:#b3b9d6; font-size:13px;">
+    🗺️ <b>地圖</b>：草叢=隨機遇敵 ・ 粉紅磚=怪物中心 ・ 黃色磚=商店 ・ 彩色方塊=訓練家 ・ 旋渦=傳送 ・ 紫色磚=封印門
+  </div>
 </div>
-
 <div id="touchControls">
   <div id="dpad">
     <button class="dpadBtn" id="dpadUp" style="grid-area:up;">▲</button>
@@ -458,6 +464,12 @@ const SaveManager = {
             GameState.player = player = data.player || { mapId: data.mapId || 'map1', x: data.pos?.x ?? 2, y: data.pos?.y ?? 2, coins: data.coins ?? 60 };
             GameState.player.totalSteps = data.player?.totalSteps || data.totalSteps || 0;
             GameState.player.totalEarnedCoins = data.player?.totalEarnedCoins || data.totalEarnedCoins || 0;
+            // 👇 🌟 加入圖鑑自動修復邏輯：掃描隊伍與倉庫，確保擁有的怪獸絕對有登錄進圖鑑
+            party.forEach(m => { if(m.speciesId) { dex.add(m.speciesId); seenDex.add(m.speciesId); } });
+            storageBox.forEach(m => { if(m.speciesId) { dex.add(m.speciesId); seenDex.add(m.speciesId); } });
+            if(GameState.party.traveler) {
+                GameState.party.traveler.forEach(m => { if(m.speciesId) { dex.add(m.speciesId); seenDex.add(m.speciesId); } });
+            }
             GameState.inventory = data.inventory || { potion: 2, candy: 1, fullHeal: 1, paintPotion: data.inventory?.paintPotion || 0 };
 
             const restore = (list) => list.map(m => {
@@ -679,8 +691,8 @@ const BattleManager = {
                     setTimeout(()=> endBattle(null), 1000);
                     return;
                 }
-            } else if(Math.random() > effectiveAcc(p, move, wild)){
-                wild.lastMoveMissed = true;
+} else if(!checkHit(p, move, wild)){
+                  wild.lastMoveMissed = true;
                 if(move.accuracyStack) wild.honeMissCount = (wild.honeMissCount || 0) + 1;
                 
                 let missMsg = prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name},但沒有命中!`;
@@ -985,8 +997,8 @@ const BattleManager = {
                 renderBattle();
                 showBattleControls(); 
                 return;
-            } else if(Math.random() > effectiveAcc(wild, move, p)){
-                wild.lastMoveMissed = true;
+} else if(!checkHit(wild, move, p)){
+                  wild.lastMoveMissed = true;
                 if(move.accuracyStack) wild.honeMissCount = (wild.honeMissCount || 0) + 1;
                 log(prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name},但沒有命中!`);
             } else {
@@ -1330,15 +1342,55 @@ const BattleManager = {
                     } else {
                         events.push(`領悟了${moveDisplayName(ls.moveId,m)}(可找回憶師替換)`);
                     }
-                });                if(spNow.evolvesTo && m.level>=spNow.evolveLevel){
-                    const newSp = SPECIES.find(s=>s.id===spNow.evolvesTo);
+                });                
+// 🌟 新版萬能進化判定引擎
+                let evolvedToId = null;
+
+                // 1. 檢查是否有自訂的特殊進化邏輯 (多條件判定)
+                if (spNow.evolutions) {
+                    for (let evo of spNow.evolutions) {
+                        if (m.level >= evo.level) {
+                            let canEvolve = true;
+                            if (evo.reqBond && (m.bond || 0) < evo.reqBond) canEvolve = false;
+                            if (evo.reqWeather && (typeof WeatherManager !== 'undefined') && WeatherManager.getOverworldWeather(GameState.player.mapId) !== evo.reqWeather) canEvolve = false;
+                            if (evo.reqItem && (GameState.inventory[evo.reqItem] || 0) <= 0) canEvolve = false;
+                            if (evo.reqMap && !evo.reqMap.includes(GameState.player.mapId)) canEvolve = false;
+                            if (evo.reqStat) {
+                                if (evo.reqStat === 'atk>def' && m.atk <= m.def) canEvolve = false;
+                                if (evo.reqStat === 'def>=atk' && m.def < m.atk) canEvolve = false;
+                            }
+                            if (evo.reqSteps && (GameState.player.totalSteps || 0) < evo.reqSteps) canEvolve = false;
+                            if (evo.reqStatus && m.status !== evo.reqStatus) canEvolve = false;
+                            if (evo.reqMove && (!m.moves.includes(evo.reqMove) && !(m.moveHistory||[]).includes(evo.reqMove))) canEvolve = false;
+
+                            if (canEvolve) {
+                                evolvedToId = evo.to;
+                                // 若設定為消耗道具進化，則扣除道具
+                                if (evo.consumeItem) GameState.inventory[evo.reqItem]--;
+                                break; // 找到第一個符合條件的型態就跳出
+                            }
+                        }
+                    }
+                } 
+                // 2. 兼容舊版的單一等級進化
+                else if (spNow.evolvesTo && m.level >= spNow.evolveLevel) {
+                    evolvedToId = spNow.evolvesTo;
+                }
+
+                // 🌟 執行進化處理
+                if (evolvedToId) {
+                    const newSp = SPECIES.find(s => s.id === evolvedToId);
                     m.speciesId = newSp.id;
                     dex.add(newSp.id); seenDex.add(newSp.id);
+                    
                     const newStats = computeStats(newSp, m.level, m.iv);
-                    m.maxHp = newStats.maxHp; m.atk = newStats.atk; m.def = newStats.def; m.hp = m.maxHp;
+                    m.maxHp = newStats.maxHp; m.atk = newStats.atk; m.def = newStats.def; 
+                    m.hp = m.maxHp; // 進化後恢復體力
+                    m.status = null; // 進化時解除異常狀態
+                    
                     events.push(`✨進化成了${newSp.name}!`);
-                }
-            }
+                    spNow = newSp; // 更新當前迴圈的物種基準，避免錯誤
+                }            }
             const sp = MonsterUtil.species(m);
             const line = `${sp.name} 獲得 ${gain} 經驗值!` + (leveled?` 升到了 Lv.${m.level}!`:'') + events.join(' ');
             if(i===GameState.party.activeIndex) firstMsg += line; else extraMsgs.push(line);
@@ -1349,19 +1401,29 @@ const BattleManager = {
         }
         updateHud();
 
-        if(isTrainer && trainerTeamQueue.length>0){
+if(isTrainer && trainerTeamQueue.length>0){
             setTimeout(()=>{
                 const nextMon = trainerTeamQueue.shift();
                 this.state.enemy = nextMon; // 更新 BM 狀態
                 wild = nextMon; // 相容全域
                 seenDex.add(nextMon.speciesId);
-                log(`${currentTrainer.name} 派出了 ${MonsterUtil.species(nextMon).name}(Lv.${nextMon.level})!`);
+                
+                let msg = `${currentTrainer.name} 派出了 ${MonsterUtil.species(nextMon).name}(Lv.${nextMon.level})!`;
+                
+                // 🌟 修正：敵方觸發上場特性 (如威嚇)
+                const p = party[GameState.party.activeIndex];
+                const entryRes = runPassiveEvent('onEntry', nextMon, p);
+                if (entryRes && entryRes.messages && entryRes.messages.length > 0) {
+                    msg += ' ' + entryRes.messages.join(' ');
+                }
+                
+                log(msg);
                 renderBattle();
                 showBattleControls();
             }, 2000);
             return;
         }
-        if(isTrainer && trainerTeamQueue.length===0){
+                if(isTrainer && trainerTeamQueue.length===0){
             trainersDefeated.add(currentTrainer.id);
             if(currentTrainer.id === 'boss_origindra'){
                 setTimeout(()=>{ log(`✨ 始源龍認可了你的實力！請開啟【任務(Q)】介面領取牠！`); }, 2000);
@@ -1434,8 +1496,11 @@ const BattleManager = {
         const newName = MonsterUtil.species(newMon).name;
         
         let msg = `收回了 ${oldName},派出 ${newName}!`;
-        if(checkSnowSummon(newMon)) msg += ' ❄️天氣變成了雪!';
-        
+// 🌟 修正：觸發上場特性 (包含威嚇、天氣呼喚等)
+        const entryRes = runPassiveEvent('onEntry', newMon, this.state.enemy);
+        if (entryRes && entryRes.messages && entryRes.messages.length > 0) {
+            msg += ' ' + entryRes.messages.join(' ');
+        }        
         log(msg);
         renderBattle();
         setTimeout(enemyTurn, 900); // 這裡依然會呼叫你全域包裝好的 enemyTurn
@@ -1477,8 +1542,7 @@ function openBattleSwapUI(forceSwap = false) {
     document.getElementById('controlsBlocker').style.display = 'none';    
     const swapList = document.getElementById('swapList');
     swapList.innerHTML = '';
-    swapList.style.display = 'flex';
-
+swapList.style.display = 'grid';
     // 取得當前敵方屬性以計算相剋
     const wildMon = (typeof BattleManager !== 'undefined' && BattleManager.state.enemy) ? BattleManager.state.enemy : (typeof wild !== 'undefined' ? wild : null);
     const wType = wildMon ? effectiveType(wildMon) : 'none';
@@ -1561,16 +1625,19 @@ document.getElementById('btnParty').onclick = () => openBattleSwapUI(false);
 // ==========================================
 // 🎯 統一版命中率計算系統 (輸出 0.0 ~ 1.0 的小數)
 // ==========================================
-function effectiveAcc(attacker, move, defender) {
-    // 1. 取得基礎命中率 (防呆：同時支援 move.acc 與 move.acc)
+// ==========================================
+// 🎯 統一版命中率計算與判定系統 (直接回傳 true/false)
+// ==========================================
+function checkHit(attacker, move, defender) {
+    // 1. 取得基礎命中率 (防呆：同時支援 move.acc 與 move.accuracy)
     let baseAcc = 1.0; // 預設必中
     if (move.acc !== undefined) {
-        baseAcc = move.acc > 1 ? move.acc / 100 : move.acc; // 若不小心寫成 95，自動轉為 0.95
+        baseAcc = move.acc > 1 ? move.acc / 100 : move.acc;
     } else if (move.accuracy !== undefined) {
         baseAcc = move.accuracy > 1 ? move.accuracy / 100 : move.accuracy;
     }
 
-    if (move.alwaysHit) return 1.0;
+    if (move.alwaysHit) return true; // 必中招式直接回傳 true
 
     // 2. 建立命中 Context，將小數轉為整數百分比 (0~100) 方便特性做加減
     const ctx = {
@@ -1579,7 +1646,7 @@ function effectiveAcc(attacker, move, defender) {
         move: move,
         moveType: move.type,
         weather: currentWeather,
-        accuracy: baseAcc * 100, // 轉成 95
+        accuracy: baseAcc * 100, // 轉成例如 95
         guaranteedHit: false
     };
 
@@ -1589,7 +1656,7 @@ function effectiveAcc(attacker, move, defender) {
         runPassiveEvent('beforeHitCheck', defender, attacker, ctx);
     }
 
-    if (ctx.guaranteedHit) return 1.0;
+    if (ctx.guaranteedHit) return true;
 
     // 4. 處理天氣影響 (例如濃霧 -20% 命中)
     if (currentWeather && currentWeather.id === 'fog') {
@@ -1607,8 +1674,9 @@ function effectiveAcc(attacker, move, defender) {
         ctx.accuracy -= attacker.accDebuff;
     }
 
-    // 7. 將最終的百分比 (例如 75) 轉回小數 (0.75) 給系統判定，並確保鎖在 0~1 之間
-    return Math.max(0, Math.min(1.0, ctx.accuracy / 100));
+    // 7. 將最終的百分比轉回小數 (0.0~1.0)，並直接進行亂數判定
+    const finalAcc = Math.max(0, Math.min(1.0, ctx.accuracy / 100));
+    return Math.random() <= finalAcc;
 }
 // ==========================================
 // 🗺️ 地圖與移動管理器 (Map Manager)
@@ -2298,13 +2366,9 @@ const SPECIES = [
   { id:'65',  name:'土靈 Terran',   type:'earth',   color:'#8a6a4a', accent:'#c9a878', shape:'round',  baseHp:48, baseAtk:8,  baseDef:15, passive:'regen' },
   { id:'66',  name:'雷角 Voltan',   type:'thunder', color:'#f0c020', accent:'#fff0a0', shape:'zap',     baseHp:39, baseAtk:13, baseDef:9,  passive:'guts' },
   // ↓全新原創怪物(一般野生就會遇到)
-  { id:'67', name:'塵怪 Dustling', type:'earth', color:'#c9a878', accent:'#efe0c0', shape:'square', baseHp:43, baseAtk:10, baseDef:13, passive:'thick_skin' },
   { id:'68', name:'鰭光 Luminfin', type:'light', color:'#ffdf7a', accent:'#fffde0', shape:'crystal',   baseHp:36, baseAtk:12, baseDef:9,  passive:'friendly' },
-  { id:'69', name:'機板獸 Bordroid', type:'fire', color:'#DE3222', accent:'#ffb347', shape:'board', baseHp:38, baseAtk:13, baseDef:11, passive:'thick_skin' },
-  { id:'70', name:'黑箱獸 Blackbox', type:'dark', color:'#200000', accent:'#441169', shape:'square', outlineColor:'#ffffff', eyeColor:'#ffffff', baseHp:37, baseAtk:12, baseDef:10, passive:'pitchDarkGuard' },
   { id:'71',   name:'蛛靈 Spidra',    type:'dark',  color:'#200000', accent:'#492366', outlineColor:'#E3F9FC', shape:'spider',   baseHp:34, baseAtk:13, baseDef:8,  passive:'poisonImmune' },
   { id:'72', name:'妖菇 Mystroom',  type:'dark',  color:'#EAA4EB', accent:'#EBD4A4', shape:'mushroomb', baseHp:36, baseAtk:12, baseDef:10, passive:'statusExploit' },
-  { id:'73',   name:'飛輪獸 Cyclon',  type:'earth', color:'#F2EAA2', accent:'#fff8d9', outlineColor:'#E3F9FC', shape:'bike',     baseHp:35, baseAtk:11, baseDef:9,  passive:'expBoost' },
   { id:'74',  name:'陶甕獸 Urnling', type:'earth', color:'#D6A754', accent:'#f0d9a0', shape:'vase',     baseHp:33, baseAtk:12, baseDef:11, passive:'guts' },
   { id:'75',  name:'疊塊獸 Blockon', type:'earth', color:'#705119', accent:'#915D37', shape:'blocks',   baseHp:44, baseAtk:9,  baseDef:14, passive:'sandstormCure' },
   { id:'76',   name:'Gerator',  type:'ice', color:'#99F2E2', accent:'#b39ddb', outlineColor:'#ecf0f1', shape:'refrigerator', baseHp:42, baseAtk:9,  baseDef:14, passive:'waterAbsorbDef' },
@@ -2318,7 +2382,7 @@ const SPECIES = [
   { id:'04',   name:'Fuyuka',          type:'thunder', color:'#ffe98a', accent:'#fff0a0', outlineColor:'#ecf0f1', shape:'floor_lamp',   baseHp:40, baseAtk:13, baseDef:9,  passive:'lightShield' },
   { id:'05',   name:'Ranper',          type:'thunder', color:'#ffe98a', accent:'#fff0a0', outlineColor:'#ffffff', shape:'head_lamp',    baseHp:34, baseAtk:14, baseDef:8,  passive:'dazzling' },
   { id:'06',   name:'Doutain',         type:'thunder', color:'#FCE490', accent:'#FFFE14', outlineColor:'#ecf0f1', shape:'lighthouse',   baseHp:48, baseAtk:10, baseDef:15, passive:'illuminate' },
-  { id:'07',   name:'提灯chouchin',    type:'fire',    color:'#ff6b4a', accent:'#FFFE4D', outlineColor:'#FFFE0A', shape:'lantern_2',    baseHp:36, baseAtk:14, baseDef:7,  passive:'steady' },
+  { id:'07',   name:'提灯chouchin',    type:'fire',    color:'#FFFE0A', accent:'#FFFE4D', outlineColor:'#ff6b4a', shape:'lantern_2',    baseHp:36, baseAtk:14, baseDef:7,  passive:'steady' },
   { id:'08',   name:'Fuusen',          type:'fire',    color:'#FF7E1A', accent:'#ffb347', outlineColor:'#F7D499', shape:'air_balloon',  baseHp:55, baseAtk:10, baseDef:5,  passive:'levitate' },
   { id:'09',   name:'Rousoku',         type:'fire',    color:'#ff6b4a', accent:'#ffb347', outlineColor:'#ecf0f1', shape:'candle',       baseHp:28, baseAtk:17, baseDef:6,  passive:'firelight' },
   { id:'10',   name:'Kacyo',           type:'fire',    color:'#ff6b4a', accent:'#ffb347', outlineColor:'#F0A932', shape:'butterfly_3',  baseHp:32, baseAtk:15, baseDef:7,  passive:'guts' },
@@ -2327,7 +2391,6 @@ const SPECIES = [
   { id:'13',   name:'Haa',             type:'water',   color:'#BAC9D4', accent:'#6B3C18', outlineColor:'#CFB180', shape:'shrimp',       baseHp:30, baseAtk:16, baseDef:7,  passive:'firstStrike' },
   { id:'14',   name:'Turizao',         type:'water',   color:'#C1FA98', accent:'#6B3C18', outlineColor:'#ecf0f1', shape:'fishing_rod',  baseHp:35, baseAtk:14, baseDef:8,  passive:'sunnyPower' },
   { id:'15',   name:'Hakuchyo',        type:'water',   color:'#F7FDFF', accent:'#6B3C18', outlineColor:'#ecf0f1', shape:'swan',         baseHp:42, baseAtk:11, baseDef:10, passive:'rainSummon' },
-  { id:'16',   name:'雛鶏 Suukei',     type:'wind',    color:'#FCFC9F', accent:'#6B3C18', outlineColor:'#FFB575', shape:'chick',        baseHp:32, baseAtk:12, baseDef:6,  passive:'wakeUp' , noEyes: true},
   { id:'17',   name:'Funsui',          type:'water',   color:'#5FC5F5', accent:'#6B3C18', outlineColor:'#ecf0f1', shape:'fountain',     baseHp:46, baseAtk:9,  baseDef:13, passive:'purity' },
   { id:'18',   name:'珊瑚 Sango',      type:'water',   color:'#65D2F7', accent:'#92F793', outlineColor:'#ecf0f1', shape:'coral',        baseHp:38, baseAtk:8,  baseDef:18, passive:'waterAbsorbDef' },
   { id:'19',   name:'Seoi bam',        type:'water',   color:'#A8A8A8', accent:'#6B3C18', outlineColor:'#ecf0f1', shape:'water_pump',   baseHp:42, baseAtk:13, baseDef:11, passive:'wheelAtk' },
@@ -2377,7 +2440,13 @@ const SPECIES = [
   // === ⚪ 無屬性 (None) ===
   { id:'55', name:'沉思椅 Chairmind',      type:'none', color:'#D2B48C', accent:'#F5DEB3', outlineColor:'#8B4513', shape:'chair',               baseHp:48, baseAtk:8,  baseDef:16, passive:'wheelDef' },
   { id:'56', name:'守護盾 Aegishield',     type:'none', color:'#C0C0C0', accent:'#E6E6FA', outlineColor:'#708090', shape:'shield',              baseHp:45, baseAtk:9,  baseDef:18, passive:'shieldBash' },
-  { id:'57', name:'幾何角 Rhombite',       type:'none', color:'#48D1CC', accent:'#AFEEEE', outlineColor:'#008B8B', shape:'3rhombic_120degrees', baseHp:40, baseAtk:14, baseDef:12, passive:'copycat' },
+  // === 新增形狀怪獸 (ID 84 ~ 89) ===
+  { id:'84', name:'爆炎糖 Bonfire', type:'fire', color:'#FF4500', accent:'#FFD700', shape:'candy', baseHp:35, baseAtk:16, baseDef:8, passive:'guts' },
+  { id:'85', name:'幻夢糖 Mystcandy', type:'light', color:'#FF69B4', accent:'#FFE4E1', outlineColor:'#8B008B', shape:'candy', baseHp:42, baseAtk:10, baseDef:12, passive:'friendly' },
+  { id:'86', name:'翠葉刃 Leafblade', type:'wood', color:'#32CD32', accent:'#98FB98', shape:'leaf2', baseHp:38, baseAtk:15, baseDef:9, passive:'swift' },
+  { id:'87', name:'露水葉 Dewleaf', type:'water', color:'#00BFFF', accent:'#E0FFFF', shape:'leaf2', baseHp:45, baseAtk:11, baseDef:14, passive:'regen' },
+  { id:'88', name:'石卒 Pawnrock', type:'earth', color:'#8B4513', accent:'#DEB887', shape:'chess', baseHp:48, baseAtk:12, baseDef:16, passive:'thick_skin' },
+  { id:'89', name:'影騎 Darknight', type:'dark', color:'#2F4F4F', accent:'#8B008B', outlineColor:'#E6E6FA', shape:'chess', baseHp:40, baseAtk:14, baseDef:10, passive:'intimidate' },
   // ↓進化型(不會野生出現,只能靠既有怪物升級變成)
   { id:'80',  name:'焰狼 Emberex',   type:'fire',    color:'#e8401a', accent:'#ff9d4d', shape:'round',   baseHp:56, baseAtk:19, baseDef:13, passive:'guts',       evolved:true },
   { id:'81',  name:'潮靈 Aquarus',   type:'water',   color:'#2a6fd6', accent:'#a8d8ff', shape:'drop',    baseHp:60, baseAtk:16, baseDef:16, passive:'waterAbsorbDef',      evolved:true },
@@ -2391,7 +2460,44 @@ const SPECIES = [
   {id:'92', name:'深淵海神 Leviathan', type:'water',color:'#000080', accent:'#00FFFF', outlineColor:'#000000', shape:'abyssal_whale', baseHp:60, baseAtk:15, baseDef:18, passive:'rainRegen', legendary:true },
   {id:'93', name:'天雷聖鳥 Thunderbird', type:'thunder',color:'#FFD700', accent:'#FFFFFF', outlineColor:'#DAA520', shape:'thunder_bird',baseHp:50, baseAtk:20, baseDef:15, passive:'chargeUp', legendary:true },
   {id:'95', name:'虛空神機 Voidgear', type:'none',color:'#E6E6FA', accent:'#FFFFFF', outlineColor:'#4B0082', shape:'sacred_gear',baseHp:60, baseAtk:14, baseDef:20, passive:'purity' , legendary:true },
-  { id:'96', name:'冰河猛瑪 Glacioth', type:'ice', color:'#E0FFFF', accent:'#00FFFF', outlineColor:'#4682B4', shape:'ice_mammoth', baseHp:88, baseAtk:16, baseDef:22, passive:'snowSummon', legendary:true }
+  { id:'96', name:'冰河猛瑪 Glacioth', type:'ice', color:'#E0FFFF', accent:'#00FFFF', outlineColor:'#4682B4', shape:'ice_mammoth', baseHp:88, baseAtk:16, baseDef:22, passive:'snowSummon', legendary:true },
+// 替換這 6 隻怪獸的設定 (加入了 evolutions 陣列)
+  { id:'69', name:'機板獸 Bordroid', type:'fire', color:'#DE3222', accent:'#ffb347', shape:'board', baseHp:38, baseAtk:13, baseDef:11, passive:'thick_skin', evolutions:[{level:30, reqItem:'ta', consumeItem:true, to:'101'},{level:30, reqItem:'tb', consumeItem:true, to:'101'},{level:30, reqItem:'tc', consumeItem:true, to:'101'},{level:30, reqItem:'td', consumeItem:true, to:'101'}] },
+  { id:'67', name:'塵怪 Dustling', type:'earth', color:'#c9a878', accent:'#efe0c0', shape:'square', baseHp:43, baseAtk:10, baseDef:13, passive:'thick_skin', evolutions:[{level:28, reqMap:['map10'], to:'102'}] },
+  { id:'57', name:'幾何角 Rhombite', type:'none', color:'#48D1CC', accent:'#AFEEEE', outlineColor:'#008B8B', shape:'3rhombic_120degrees', baseHp:40, baseAtk:14, baseDef:12, passive:'copycat', evolutions:[{level:30, reqStat:'atk>def', to:'103'},{level:30, reqStat:'def>=atk', to:'104'}] },
+  { id:'70', name:'黑箱獸 Blackbox', type:'dark', color:'#200000', accent:'#441169', shape:'square', outlineColor:'#ffffff', eyeColor:'#ffffff', baseHp:37, baseAtk:12, baseDef:10, passive:'pitchDarkGuard', evolutions:[{level:30, reqStatus:'paralysis', to:'105'}] },
+  { id:'16', name:'雛鶏 Suukei', type:'wind', color:'#FCFC9F', accent:'#6B3C18', outlineColor:'#FFB575', shape:'chick', baseHp:32, baseAtk:12, baseDef:6, passive:'wakeUp', noEyes:true, evolutions:[{level:25, reqMove:'mercyStrike', to:'106'}] },
+  { id:'73', name:'飛輪獸 Cyclon', type:'earth', color:'#F2EAA2', accent:'#fff8d9', outlineColor:'#E3F9FC', shape:'bike', baseHp:35, baseAtk:11, baseDef:9, passive:'expBoost', evolutions:[{level:35, reqSteps:5000, to:'100'}] },
+// 15 Hakuchyo (天鵝) -> 等級26 + 雨天進化
+  { id:'15', name:'Hakuchyo', type:'water', color:'#F7FDFF', accent:'#6B3C18', outlineColor:'#ecf0f1', shape:'swan', baseHp:42, baseAtk:11, baseDef:10, passive:'rainSummon', evolutions:[{level:26, reqWeather:'rain', to:'108'}] },
+  // 08 Fuusen (熱氣球) -> 等級30 + 灼傷狀態進化 (浴火重生)
+  { id:'08', name:'Fuusen', type:'fire', color:'#FF7E1A', accent:'#ffb347', outlineColor:'#F7D499', shape:'air_balloon', baseHp:55, baseAtk:10, baseDef:5, passive:'levitate', evolutions:[{level:30, reqStatus:'burn', to:'109'}] },
+  // 35 Cleavolt (菜刀) -> 等級35 + 消耗道具「玻璃劍」進化 (吞噬裝備)
+  { id:'35', name:'Cleavolt', type:'earth', color:'#A9A9A9', accent:'#E6E6FA', outlineColor:'#4682B4', shape:'cleaver', baseHp:38, baseAtk:18, baseDef:6, passive:'underdogAtk', evolutions:[{level:35, reqItem:'glassSword', consumeItem:true, to:'110'}] },
+// 02 Semile (LED燈) -> 等級28 + 在雷暴聖殿(map7)進化 (聖地共鳴)
+  { id:'02', name:'Semile', type:'thunder', color:'#ffe98a', accent:'#fff0a0', outlineColor:'#ffffff', shape:'led_light', baseHp:35, baseAtk:15, baseDef:7, passive:'chargeUp', evolutions:[{level:28, reqMap:['map7'], to:'111'}] },
+  // ↓ 全新多條件進化型 (不會野生出現)
+  { id:'101', name:'核心戰機 Coreborg', type:'fire', color:'#DE3222', accent:'#00E5FF', shape:'blocks', baseHp:55, baseAtk:20, baseDef:18, passive:'chargeUp', evolved:true },
+  { id:'102', name:'熔岩巨像 Magmalith', type:'fire', color:'#e8401a', accent:'#d8c49a', shape:'square', baseHp:65, baseAtk:16, baseDef:22, passive:'ironWall', evolved:true },
+  { id:'103', name:'銳鋒角', type:'none', color:'#48D1CC', accent:'#ff4500', shape:'crystal', baseHp:45, baseAtk:26, baseDef:11, passive:'firstStrike', evolved:true },
+  { id:'104', name:'巨神碑', type:'none', color:'#48D1CC', accent:'#8B4513', shape:'square', baseHp:60, baseAtk:12, baseDef:25, passive:'shieldBash', evolved:true },
+  { id:'105', name:'過載魔盒 Overload', type:'dark', color:'#111111', accent:'#ff00ff', outlineColor:'#ff00ff', shape:'square', baseHp:50, baseAtk:24, baseDef:14, passive:'intimidate', evolved:true },
+  { id:'106', name:'仁義武禽', type:'wind', color:'#FCFC9F', accent:'#e94560', outlineColor:'#e94560', shape:'crow', baseHp:55, baseAtk:18, baseDef:15, passive:'steady', evolved:true },
+  { id:'100', name:'狂飆重機 Motorock', type:'earth', color:'#A0522D', accent:'#ff0000', shape:'bike', baseHp:55, baseAtk:18, baseDef:17, passive:'swift', evolved:true },
+{ id:'107', name:'網域魔蛛 Cyberarach', type:'dark', color:'#111111', accent:'#00FF00', outlineColor:'#00FF00', shape:'spider', baseHp:55, baseAtk:22, baseDef:12, passive:'statusExploit', evolved:true },
+// ↓ 更多全新多條件進化型
+  // 108 暴雨嵐鳥 (水天鵝的雨中狂暴型態)
+  { id:'108', name:'暴雨嵐鳥 Stormswan', type:'water', color:'#1e3a8a', accent:'#00ffff', outlineColor:'#00ffff', shape:'swan', baseHp:60, baseAtk:25, baseDef:12, passive:'rainPower', evolved:true },
+  // 109 爆燃飛船 (熱氣球在灼傷時爆發的型態)
+  { id:'109', name:'爆燃飛船 Zeppelin', type:'fire', color:'#8b0000', accent:'#ff4500', outlineColor:'#ff0000', shape:'air_balloon', baseHp:75, baseAtk:22, baseDef:10, passive:'firelight', evolved:true },
+  // 110 琉璃斬破刃 (吸收玻璃劍後化作極致攻擊的大劍)
+  { id:'110', name:'琉璃斬破刃 Glasscleaver', type:'earth', color:'#e0ffff', accent:'#ffffff', outlineColor:'#ffffff', shape:'cleaver', baseHp:50, baseAtk:32, baseDef:5, passive:'keenEye', evolved:true },
+  // 111 霓虹巨塔 (LED燈在雷暴聖殿吸收能量變成的發電塔)
+  { id:'111', name:'霓虹巨塔 Neontower', type:'thunder', color:'#000000', accent:'#00ff00', outlineColor:'#00ff00', shape:'tower', baseHp:65, baseAtk:18, baseDef:24, passive:'dazzling', evolved:true },
+// 112 電馭駭兔 (由 36 Zapbit 變異)
+  { id:'112', name:'電馭駭兔 Cyberabbit', type:'thunder', color:'#111111', accent:'#00FFFF', outlineColor:'#00FFFF', shape:'rabbit', baseHp:50, baseAtk:28, baseDef:12, passive:'swift', evolved:true },
+  // 113 全知網椅 (由 55 沉思椅 變異)
+  { id:'113', name:'全知網椅 ThroneNet', type:'none', color:'#111111', accent:'#FF00FF', outlineColor:'#FF00FF', shape:'chair', baseHp:70, baseAtk:15, baseDef:25, passive:'ironWall', evolved:true },
 ];
 
 // 取得當前生效的特性（支援基因複製）
@@ -2508,11 +2614,9 @@ const SHAPE_DRAWERS = {
       ctx.moveTo(0, -s*0.7); ctx.lineTo(s*0.7, s*1.0); ctx.lineTo(-s*0.7, s*1.0); 
       ctx.closePath();
       ctx.fill(); ctx.stroke();
-      
       ctx.beginPath();
       ctx.arc(0, -s*0.5, s*0.35, 0, Math.PI*2);
       ctx.fill(); ctx.stroke();
-      
       ctx.beginPath();
       ctx.arc(0, -s*0.4, s*0.7, 0, Math.PI*2); ctx.fill(); // big round
       ctx.stroke();
@@ -2561,6 +2665,24 @@ const SHAPE_DRAWERS = {
       }
       ctx.closePath(); ctx.fill(); ctx.stroke();
     },
+    candy(ctx, s, species, overrideColor) {
+  ctx.beginPath(); ctx.moveTo(-s*0.7, -s*0.75); ctx.lineTo(s*0.7, -s*0.75); ctx.lineTo(0, -s*0.3); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, s*0.3); ctx.lineTo(s*0.7, s*1.15); ctx.lineTo(-s*0.7, s*1.15); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, s*0.35, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+},
+      leaf2(ctx, s, species, overrideColor) {
+          ctx.beginPath();
+          ctx.moveTo(0, -s*1.2); ctx.quadraticCurveTo(s*0.8, -s*0.2, 0, s*1.0);
+          ctx.quadraticCurveTo(-s*0.8, -s*0.2, 0, -s*1.2); ctx.closePath();
+          ctx.fill(); ctx.stroke();
+          ctx.strokeStyle='rgba(255,255,255,.5)';
+          ctx.beginPath(); ctx.moveTo(0, -s*1.2); ctx.lineTo(0, s*1.4); ctx.stroke();
+},
+mushroom2(ctx, s, species, overrideColor) {
+  ctx.beginPath(); ctx.rect(-s*0.25, 0, s*0.5, s*0.8); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, s*0.8, Math.PI, 0); ctx.lineTo(s*0.8, s*0.1); ctx.lineTo(-s*0.8, s*0.1); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-s*0.4, -s*0.3, s*0.15, 0, Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(s*0.3, -s*0.4, s*0.1, 0, Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, -s*0.6, s*0.12, 0, Math.PI*2); ctx.stroke();
+},
     ice_mammoth(ctx, s, species, overrideColor) {
       ctx.beginPath(); ctx.ellipse(-s*0.9, -s*0.2, s*0.4, s*0.8, -0.3, 0, Math.PI*2); ctx.fill(); ctx.stroke();
       ctx.beginPath(); ctx.ellipse(s*0.9, -s*0.2, s*0.4, s*0.8, 0.3, 0, Math.PI*2); ctx.fill(); ctx.stroke();
@@ -4130,7 +4252,7 @@ lvl: 50
   { id:'npc_code_8', mapId:'map22', x:26, y:6, name:'Reiziger Bram', color:'#a030e0', kind:'tradeCode' }, // 荷蘭 (旅人 布拉姆)
 
   // === 📦 倉庫管理員 (Storage Managers) - 總共 8 位 ===
-  { id:'npc_storage_1', mapId:'map2', x:5, y:13, name:'Wächter Hans', color:'#5a8fd6', kind:'storage' }, // 德國 (守衛 漢斯)
+  { id:'npc_storage_1', mapId:'map2', x:3, y:9, name:'Wächter Hans', color:'#5a8fd6', kind:'storage' }, // 德國 (守衛 漢斯)
   { id:'npc_storage_2', mapId:'map1', x:14, y:5, name:'Custode Marco', color:'#5a8fd6', kind:'storage' }, // 義大利 (保管人 馬可)
   { id:'npc_storage_3', mapId:'map8', x:18, y:15, name:'Gardien Hugo', color:'#5a8fd6', kind:'storage' }, // 法國 (守衛 雨果)
   { id:'npc_storage_4', mapId:'map11', x:28, y:10, name:'Guardião Joao', color:'#5a8fd6', kind:'storage' }, // 葡萄牙/巴西 (守護者 若昂)
@@ -4443,7 +4565,7 @@ function drawMap(){
         mctx.beginPath(); mctx.rect(x * TILE, y * TILE, TILE, TILE); mctx.clip();
         mctx.strokeStyle = 'rgba(15, 11, 126, 0.87)';
         mctx.lineWidth = 3;
-        const off9 = (animTime * 0.5) % 20;
+        const off9 = (animTime * 0.8) % 20;
         for(let k = -1; k < 3; k++){
           mctx.beginPath();
           mctx.moveTo(x * TILE - TILE + k * 20 + off9, y * TILE + TILE);
@@ -5091,12 +5213,22 @@ const MapManager = {
     },
     
     // 風屬性傳送技能
+// 風屬性傳送技能
     useTeleport: function() {
         if(!started || isSaving || inBattle || overlayOpen || typeChartOpen) return;
-        // 👇 🌟 新增：檢查第一章任務是否全部完成
+        
+        // 🌟 1. 檢查任務進度 (未解鎖時跳出明顯彈窗)
         const ch1Completed = QUESTS.filter(q => q.chapter === 1).every(q => q.check());
-        if (!ch1Completed) {    toast('🔒 需要完成【第一章】所有任務才能解鎖疾風傳送！');    return;}
-        if(!partyHasType('wind')){ toast(`需要隊伍中有風屬性的怪物才能使用${FIELD_SKILL_NAME.wind}`); return; }
+        if (!ch1Completed) {    
+            alert('🔒 【尚未解鎖疾風傳送】\n\n你需要先完成「第一章」的所有任務，才能解鎖這個便利的傳送能力喔！');    
+            return;
+        }
+        
+        // 🌟 2. 檢查隊伍屬性 (沒帶風系怪物時跳出明顯彈窗)
+        if(!partyHasType('wind')){ 
+            alert(`🌀 【無法使用疾風傳送】\n\n你的隊伍中需要攜帶至少一隻「風屬性」的怪獸，才能引導風的力量進行傳送！`); 
+            return; 
+        }
         
         let nearest=null, bestDist=Infinity;
         for(let y=0; y<MAP_H; y++){
@@ -5113,9 +5245,9 @@ const MapManager = {
         player.x=nearest.x; player.y=nearest.y;
         drawMap();
         document.getElementById('hudPos').textContent = `位置: (${player.x}, ${player.y}) ・ ${WORLDS[GameState.player.mapId].name}`;
-        toast(`🌀 ${FIELD_SKILL_NAME.wind}:瞬間移動到最近的怪物中心!`);
+        toast(`🌀 ${FIELD_SKILL_NAME.wind}：瞬間移動到了最近的怪物中心！`);
     }
-};
+  };
 // ==========================================
 // 綁定 UI 事件與鍵盤輸入，將工作交給 MapManager
 // ==========================================
@@ -5125,7 +5257,50 @@ document.getElementById('dpadLeft').onclick = ()=> MapManager.handleDirectionInp
 document.getElementById('dpadRight').onclick = ()=> MapManager.handleDirectionInput(1,0);
 document.getElementById('dpadF').onclick = ()=> closeOverlays();
 document.getElementById('quickT').onclick = ()=> MapManager.useTeleport();
-
+// ==========================================
+// 📤 綁定主畫面：匯出目前進度 (Live Export)
+// ==========================================
+document.getElementById('exportLiveBtn').onclick = () => {
+    if (inBattle) { 
+        toast('戰鬥中無法匯出進度！'); 
+        return; 
+    }
+    
+    // 確保當下最新狀態
+    SaveManager.save(false); 
+    
+    // 取得當下進度代碼
+    const code = 'MQSAVE-' + SaveManager.export();
+    
+    // 開啟專屬介面
+    closeOverlays();
+    document.getElementById('eiTitle').textContent = `▌ 匯出目前進度 ▌`;
+    const ta = document.getElementById('eiTextarea');
+    ta.value = code;
+    ta.readOnly = true;
+    
+    document.getElementById('eiCopyBtn').style.display = 'block';
+    document.getElementById('eiImportBtn').style.display = 'none';
+    
+    // 複製功能
+    document.getElementById('eiCopyBtn').onclick = async () => {
+        ta.select();
+        try {
+            await navigator.clipboard.writeText(code);
+            toast('✅ 代碼已成功複製到剪貼簿！');
+        } catch(e) {
+            toast('複製失敗，請在文字框內手動全選並複製');
+        }
+    };
+    
+    // 關閉功能 (因為是匯出目前進度，關閉時不需要重新整理網頁)
+    document.getElementById('eiCloseBtn').onclick = () => {
+        closeOverlays();
+    };
+    
+    document.getElementById('exportImportOverlay').style.display = 'flex';
+    overlayOpen = 'exportImport';
+};
 // 其他 UI 快捷鍵維持不變
 document.getElementById('quickB').onclick = ()=> { if(!inBattle) toggleOverlay('status'); };
 document.getElementById('quickI').onclick = ()=> { if(!inBattle) toggleOverlay('bag'); };
@@ -6016,8 +6191,9 @@ function renderShopScreen(){
   list.appendChild(consumeHeader);
   
 // 🌟 只渲染不是 tm_ 開頭的道具
-  Object.entries(ITEMS).filter(([id]) => !id.startsWith('tm_')).forEach(([id,item])=>{
-    if (item.unlockCondition && !item.unlockCondition()) return;
+// 🌟 排除 tm_ 技能秘笈，並且排除帶有 keyItem 標記的任務重要道具
+Object.entries(ITEMS).filter(([id, item]) => !id.startsWith('tm_') && !item.keyItem).forEach(([id,item])=>{
+      if (item.unlockCondition && !item.unlockCondition()) return;
     const card = document.createElement('div');
     card.className='shopCard';
     
@@ -6501,19 +6677,48 @@ function renderTradeSwap(npc){
       const btn = document.createElement('button');
       btn.className='actBtn'; btn.style.cssText='width:100%;text-align:left;margin-bottom:6px;';
       btn.textContent = `${sp.name} Lv.${m.level}`;
-      btn.onclick = ()=>{
-        if(!confirm(`確定要用 ${sp.name} 交換 ✨異色 ${offerSp.name} Lv.${npc.offerLevel} 嗎?這無法復原。`)) return;
-        GameState.player.hasTraded = true; // 🌟 記錄已交易
-        const offered = makeMonster(npc.offerSpecies, npc.offerLevel, generateIV());
-        offered.altColor = npc.offerColor;
-        party.splice(i,1,offered);
-        dex.add(npc.offerSpecies); seenDex.add(npc.offerSpecies);
-        updateHud();
-        toast(`交換成功!獲得了 ✨異色 ${offerSp.name}!`);
-        SaveManager.save();
-        closeOverlays();
+btn.onclick = ()=>{
+      // 1. 攔截玩家：不准拿神獸去換代碼！
+      if (sp.legendary) { toast('無法交出神獸進行交換！'); return; }
+        
+      if(!confirm(`確定要提交 ${sp.name} 來交換 ${incomingSp.name} 嗎?這無法復原。`)) return;
+      
+// 👇 🌟 數位異變判定核心 (升級為多物種支援)！
+      let finalSpeciesId = obj.s;
+      let isMutated = false;
+      
+      // 突變字典 (原本ID -> 突變後ID)
+      const mutations = {
+          '71': '107', // 蛛靈 -> 網域魔蛛
+          '36': '112', // Zapbit -> 電馭駭兔
+          '55': '113'  // 沉思椅 -> 全知網椅
       };
-      content.appendChild(btn);
+      
+      if (mutations[finalSpeciesId]) {
+          finalSpeciesId = mutations[finalSpeciesId];
+          isMutated = true;
+      }
+
+      // 用最終判定好的 ID 來生成怪獸
+      const newMon = makeMonster(finalSpeciesId, obj.l, obj.iv);
+      if(obj.c) newMon.altColor = obj.c;
+      
+      party.splice(i,1,newMon);
+      dex.add(finalSpeciesId); 
+      seenDex.add(finalSpeciesId);
+      updateHud();
+      
+      // 👇 根據是否發生變異，跳出不同的驚喜提示
+      if (isMutated) {
+          alert(`⚠️ 警告：資料傳輸過程中發生異常！\n\n${incomingSp.name} 的基因序列被數位亂碼覆寫...\n✨ 發生了數位異變！進化成了 ${MonsterUtil.species(newMon).name}！`);
+      } else {
+          toast(`✅ ${obj.c?'✨異色 ':''}${MonsterUtil.species(newMon).name} 加入了隊伍!(技能已重置)`);
+      }
+      
+      SaveManager.save();
+      closeOverlays();
+        };
+          content.appendChild(btn);
     });
   }
   const back = document.createElement('button');
@@ -7052,42 +7257,55 @@ function renderStatusScreen(){
 
 // ---------- 圖鑑畫面 ----------
 // ---------- 圖鑑畫面 ----------
-function renderDexScreen() {
-  document.getElementById('dexCount').textContent = `已捕捉 ${dex.size} / ${SPECIES.length}(已遇過 ${seenDex.size})`;
+function renderDexScreen(){
   const grid = document.getElementById('dexGrid');
   grid.innerHTML = '';
+  document.getElementById('dexCount').textContent = `已遇見: ${seenDex.size} / 已捕捉: ${dex.size} / 總共: ${QUEST_NON_LEGENDARY_COUNT}`;
   
+  // 🌟 判斷玩家是否擁有世界地圖
+  const hasMap = (GameState.inventory.worldMap || 0) > 0;
+
   SPECIES.forEach(sp => {
-    const caught = dex.has(sp.id);
-    const seen = caught || seenDex.has(sp.id);
-    
+    const isCaught = dex.has(sp.id);
+    const isSeen = seenDex.has(sp.id);
+    if (!isSeen && !isCaught) return; // 完全沒看過的隱藏
+
     const card = document.createElement('div');
-    card.className = 'dexCard' + (caught ? '' : (seen ? ' seen' : ' locked'));
+    card.className = 'dexCard' + (isCaught ? '' : ' seen');
     
-    const c = document.createElement('canvas'); 
-    c.width = 40; 
-    c.height = 40;
-    card.appendChild(c);
+    const c = document.createElement('canvas');
+    c.width = 40; c.height = 40;
     
-    const label = document.createElement('div');
-    if (seen) {
-        // 抓取特性名稱 (防呆：如果沒有特性則顯示無)
-        const passiveName = PASSIVES[sp.passive] ? PASSIVES[sp.passive].name : '無特性';
-        
-        // 依序排版：名稱 -> 屬性標籤 -> 特性名稱
-        label.innerHTML = `
-            <div style="font-weight:bold; margin-bottom:3px; font-size:10px;">${sp.name}</div>
-            <span class="typeTag" style="background:${ELEMENT_META[sp.type].color}; color:#111; display:inline-block; padding:2px 4px;">${ELEMENT_META[sp.type].name}</span>
-            <div style="font-size:9px; color:var(--gold); margin-top:4px;">[${passiveName}]</div>
-        `;
+    if (isCaught) {
+        drawMonster(c.getContext('2d'), sp, 40, 40);
     } else {
-        label.innerHTML = '<div style="margin-top:12px; color:#666f9e;">？？？</div>';
+        drawSilhouette(c.getContext('2d'), 40, 40);
     }
-    card.appendChild(label);
-    
+
+    // 📍 棲息地自動推斷邏輯
+    let locHtml = '';
+    if (hasMap) {
+        let location = '各地草叢';
+        if (sp.legendary) location = '神聖的遺跡深處';
+        else if (sp.evolved) location = '無法野生捕獲 (需進化)';
+        else if (sp.type === 'water') location = '水域 / 沙灘';
+        else if (sp.type === 'ice') location = '雪山 / 極寒海域';
+        else if (sp.type === 'fire') location = '熾熱山谷';
+        else if (sp.type === 'wood' || sp.type === 'wind') location = '幽暗森林 / 迷霧高地';
+        else if (sp.type === 'earth') location = '地下洞窟 / 山路';
+        else if (sp.type === 'dark') location = '漆黑地帶 / 隱藏小徑';
+        
+        locHtml = `<div style="color:var(--accent2); font-size:9px; margin-top:4px;">📍 棲息: ${location}</div>`;
+    }
+
+    const info = document.createElement('div');
+    info.innerHTML = isCaught ? 
+        `<b>${sp.name}</b><br><span class="typeTag" style="background:${ELEMENT_META[sp.type].color};color:#111;">${ELEMENT_META[sp.type].name}</span>${locHtml}` : 
+        `<b>???</b><br><span style="font-size:9px; color:#666f9e;">未知物種</span>${locHtml}`;
+
+    card.appendChild(c);
+    card.appendChild(info);
     grid.appendChild(card);
-    if(seen) drawMonster(c.getContext('2d'), sp, 40, 40);
-    else drawSilhouette(c.getContext('2d'), 40, 40);
   });
 }
 // ---------- 起始畫面 ----------
@@ -7271,25 +7489,25 @@ const WILD_POOL = SPECIES.filter(s=> !s.evolved && !s.legendary && !STARTER_SPEC
 // 將所有野生怪物分門別類，確保每個生態系都有 4 種以上的屬性，且每隻怪會在 2~3 個生態系出沒！
 const BIOMES = {
   // 🌳 森林與草原 (木、風、水、無)
-  forest: ['22', '16', '44', '62', '48', '51', '60', '55'],
+  forest: ['22', '16', '44', '62', '48', '51', '60', '55','86'],
   
   // ⛰️ 洞窟與遺跡 (地、暗、無、火)
-  cave:   ['58', '65', '67', '71', '72', '74', '56', '09'],
+  cave:   ['58', '65', '67', '71', '72', '74', '56', '09','88'],
   
   // ❄️ 雪山與極地 (冰、水、風、光)
-  snow:   ['61', '76', '77', '78', '79', '15', '43', '68'],
+  snow:   ['61', '76', '77', '78', '79', '15', '43', '68','89'],
   
   // 🌊 海洋與沙灘 (水、風、雷、光)
-  sea:    ['12', '13', '14', '17', '18', '20', '21', '06'],
+  sea:    ['12', '13', '14', '17', '18', '20', '21', '06','87'],
   
   // 🌋 火山與熾熱地帶 (火、地、暗、雷)
-  volcano:['69', '66', '07', '08', '10', '35', '70', '65'],
+  volcano:['69', '66', '07', '08', '10', '35', '70', '65','84'],
   
   // ⚡ 城市與機械建築 (雷、光、無、火)
   city:   ['59', '01', '02', '03', '04', '05', '30', '31', '42'],
   
   // 🌫️ 迷霧與高地 (暗、風、地、光)
-  highland:['64', '71', '73', '46', '47', '26', '28', '38'],
+  highland:['64', '71', '73', '46', '47', '26', '28', '38','85'],
 };
 
 // 將 24 張地圖精準對應到 7 大生態系
@@ -7378,8 +7596,11 @@ function startTrainerBattle(trainer){
   GameState.party.activeIndex = party.findIndex(m=>m.hp>0);
   currentTrainer = trainer;
   const avgLvl = Math.max(3, Math.round(party.reduce((s,m)=>s+m.level,0)/party.length));
-  trainerTeamQueue = trainer.team.map(t=> makeMonster(t.speciesId, avgLvl + Math.round(Math.random()*2-1)));
-  
+trainerTeamQueue = trainer.team.map(tMon => {
+        // 🌟 關鍵修正：必須傳入 tMon.lvl 讓等級固定！
+        let mon = makeMonster(tMon.speciesId, tMon.lvl, generateIV());
+        return mon;
+    });  
   wild = trainerTeamQueue.shift();
   // 🌟 加入 BattleManager 綁定
   BattleManager.state.enemy = wild;
@@ -7758,8 +7979,8 @@ const MOVE_POOL = {
   fireShift:    { name:'火炎型態', power:0, acc:1.0, typeMode:'none', setType:'fire' },
   waterShift:   { name:'水流型態', power:0, acc:1.0, typeMode:'none', setType:'water' },
   woodShift:    { name:'草木型態', power:0, acc:1.0, typeMode:'none', setType:'wood' },
-  earthShift: { name:'大地型態', power:0, acc:1.0, typeMode:'none', setType:'earth' },
-  // 🔄 屬性變化技能
+earthShift: { id: 'earthShift', name: '大地型態', type: 'earth', power: 0, acc: 1, setType: 'earth', buffStat: 'def', buffAmount: 0.5,desc: '將岩漿冷卻凝固，自身屬性轉變回「地」屬性，並大幅提升防禦力！' 
+},  // 🔄 屬性變化技能
   iceShift:    { name:'冰霜型態', power:0, acc:1.0, typeMode:'none', setType:'ice' },
   windShift:   { name:'逍遙型態', power:0, acc:1.0, typeMode:'none', setType:'wind' },
   lightShift:    { name:'炫光型態', power:0, acc:1.0, typeMode:'none', setType:'light' },
@@ -7952,6 +8173,7 @@ const LEARNSET = [
 
   // 10. 絕境反擊 (lastStand) - 【全體通用】作為 Lv.32 的大後期翻盤神技
   { level: 32, moveId: 'lastStand' },
+  { moveId: 'earthShift', level: 28, speciesFilter: '102' },
 ];
 function moveDisplayName(moveId, mon){
   if(moveId==='ultimate') return `${MonsterUtil.species(mon).name.split(' ')[0]}爆擊`;
@@ -8536,7 +8758,7 @@ getMoves(p).forEach((move, i) => {
                 // 如果是 0.95 就轉成 95，如果是大於 1 的舊資料防呆轉回 100
                 const accPercent = defAcc <= 1 ? Math.round(defAcc * 100) : defAcc;
                 if (accPercent < 100) {
-                    accDisplay = `命中${accPercent}%`;
+                    accDisplay = `命中${accPercent}`;
                 }
             }
             
