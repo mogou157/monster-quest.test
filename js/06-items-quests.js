@@ -20,6 +20,11 @@ function createManualUse(moveId, reqLevel = 20) {
             toast(`等級不足！${MonsterUtil.species(m).name} 需要達到 Lv.${reqLevel} 才能學習此招式。`);
             return false;
         }
+        const moveDef = MOVE_POOL[moveId];
+        if (moveDef && moveDef.reqBondToLearn && (m.bond || 0) < moveDef.reqBondToLearn) {
+            toast(`親密度不足！${MonsterUtil.species(m).name} 的親密度需要達到 ${moveDef.reqBondToLearn} 以上,才願意學習這個招式。`);
+            return false;
+        }
         m.moveHistory = m.moveHistory || [];
         if (m.moves.includes(moveId) || m.moveHistory.includes(moveId)) {
             toast('已經學會這個招式了！');
@@ -36,17 +41,36 @@ function createManualUse(moveId, reqLevel = 20) {
         return true; 
     };
 }
-// 🌟 食物製造小工廠：自動處理心情加成
-function createFoodItem(name, desc, price) {
+// 🌟 每種食物對應的「喜好屬性」:餵給喜歡這種食物的怪物,友好度加成 x1.5
+const FOOD_FAVORITES = {
+  bdcandy: ['light'],
+  chikenSoup: ['fire'],
+  matcha: ['wood', 'wind'],
+  juice: ['water', 'ice'],
+  rice: ['earth'],
+  chocolate: ['dark'],
+  egg: ['thunder', 'none'],
+};
+
+// 🌟 食物製造小工廠：自動處理心情加成 + 喜好食物加成
+function createFoodItem(name, desc, price, foodKey) {
     return {
         name: name, desc: desc, price: price,
         use: (m) => {
             if (m.hp <= 0) return false; 
             let bondGain = 2;
             if (m.mood === 'hungry') bondGain = 4; // 飢餓時效果兩倍！
-            
-            m.bond = Math.min(200, (m.bond || 0) + bondGain);
-            toast(`餵食了 ${name}！${MonsterUtil.species(m).name} 的友好度提升了 ${bondGain} 點！`);
+
+            let likedIt = false;
+            if (foodKey && FOOD_FAVORITES[foodKey] && FOOD_FAVORITES[foodKey].includes(MonsterUtil.species(m).type)) {
+                bondGain = Math.round(bondGain * 1.5); // 喜好食物,友好度 x1.5
+                likedIt = true;
+            }
+
+            m.bond = Math.min(400, (m.bond || 0) + bondGain);
+            toast(likedIt
+                ? `${MonsterUtil.species(m).name} 很喜歡這個口味!友好度提升了 ${bondGain} 點!💖`
+                : `餵食了 ${name}！${MonsterUtil.species(m).name} 的友好度提升了 ${bondGain} 點！`);
             
             // 吃飽了就變回普通心情
             if (m.mood === 'hungry') m.mood = 'normal'; 
@@ -76,6 +100,9 @@ use: () => { toast('這是一項被動道具，只要擁有就會自動生效！
   fusionBlueprint: { name: '融合圖紙(800圓)', desc: '融合機專用素材：使用後可以讓下一次融合100%成功(沒有圖紙也能融合，只是成功率沒那麼高)。', price: 800, noTarget: true,
     unlockCondition: () => QUESTS.filter(q => q.chapter === 4).every(q => q.check()),
     use: () => { toast('融合圖紙已收進背包，去融合機使用吧！'); return false; } },
+  moveRecallPhone: { name: '回憶師電話(3000圓)', desc: '傳說中的道具，不用親自跑去找技能回憶師，直接在背包裡就能幫怪物回憶招式！', price: 3000, noTarget: true,
+    unlockCondition: () => QUESTS.filter(q => q.chapter === 8).every(q => q.check()),
+    use: () => { openMoveRecallScreen({ name: '📞 回憶師電話' }); return false; } },
   
   // 👇 替換原本的 worldMap (加入第九章解鎖的傳送功能)
 worldMap: { 
@@ -91,13 +118,13 @@ use: () => {
     return false; 
 } 
 },
-      bdcandy:createFoodItem('一袋軟糖(15圓)','色彩鮮艷的軟糖。友好度+2',15),
-  chikenSoup: createFoodItem('雞湯(25圓)', '溫熱的湯品，能溫暖身心。友好度+2', 25),
-  matcha: createFoodItem('抹茶(20圓)', '微苦回甘的飲品。友好度+2', 20),
-  juice: createFoodItem('果汁(20圓)', '酸甜解渴。友好度+2', 20),
-  rice: createFoodItem('米飯(20圓)', '填飽肚子的主食。友好度+2', 20),
-  chocolate: createFoodItem('巧克力(15圓)', '甜美的點心。友好度+2', 15),
-  egg: createFoodItem('兩顆雞蛋(15圓)', '營養豐富的原型食物。友好度+2', 15),
+      bdcandy:createFoodItem('一袋軟糖(15圓)','色彩鮮艷的軟糖。友好度+2',15,'bdcandy'),
+  chikenSoup: createFoodItem('雞湯(25圓)', '溫熱的湯品，能溫暖身心。友好度+2', 25, 'chikenSoup'),
+  matcha: createFoodItem('抹茶(20圓)', '微苦回甘的飲品。友好度+2', 20, 'matcha'),
+  juice: createFoodItem('果汁(20圓)', '酸甜解渴。友好度+2', 20, 'juice'),
+  rice: createFoodItem('米飯(20圓)', '填飽肚子的主食。友好度+2', 20, 'rice'),
+  chocolate: createFoodItem('巧克力(15圓)', '甜美的點心。友好度+2', 15, 'chocolate'),
+  egg: createFoodItem('兩顆雞蛋(15圓)', '營養豐富的原型食物。友好度+2', 15, 'egg'),
     scandy:   { name:'大經驗果(250圓)', desc:'獲得330點經驗值', price:250,  unlockCondition: () => QUESTS.filter(q => q.chapter === 5).every(q => q.check()),use:(m)=>{ if(m.hp<=0) return false; m.exp+=330; return true; } },
   fullRestore: { name: '全滿藥(150圓)', desc: '恢復全部HP並治癒異常狀態', price: 150, unlockCondition: () => QUESTS.filter(q => q.chapter === 5).every(q => q.check()), use: (m) => { 
           if(m.hp <= 0 || (m.hp === m.maxHp && !m.status)) return false;  m.hp = m.maxHp; m.status = null; return true;  }  },
@@ -114,6 +141,29 @@ price: 5000,  unlockCondition: () => QUESTS.filter(q => q.chapter === 5).every(q
   tm_charge:    { name:'秘笈:蓄力爆發(2000圓)', desc:'教導「蓄力爆發」(必中)。第一回合蓄力，第二回合造成隨機 1.2~3.6 倍的巨大傷害。', price: 2000, use: createManualUse('chargeStrike') },
   // 👇 加上這行：
   tm_hyper:     { name:'秘笈:破滅死光(2000圓)', desc:'教導「破滅死光」(威力1.5~3.8,命中50%)。命中後下回合將無法動彈。', price: 2000, use: createManualUse('hyperBeam') },
+  // 👇 換人支援系
+  tm_swapAtk:   { name:'秘笈:應援换位·攻(1200圓)', desc:'教導「應援换位·攻」。使出後強制換上後備隊友,並為牠提升攻擊力。', price: 1200, use: createManualUse('allySwapAtkUp') },
+  tm_swapDef:   { name:'秘笈:應援换位·防(1200圓)', desc:'教導「應援换位·防」。使出後強制換上後備隊友,並為牠提升防禦力。', price: 1200, use: createManualUse('allySwapDefUp') },
+  tm_swapCure:  { name:'秘笈:交替看護(1200圓)', desc:'教導「交替看護」。使出後強制換上後備隊友,並立即淨化牠的異常狀態。', price: 1200, use: createManualUse('allySwapCure') },
+  tm_strikeSwap:{ name:'秘笈:突擊撤退(1600圓)', desc:'教導「突擊撤退」(威力1.0,必中)。攻擊後強制換上後備隊友。', price: 1600, use: createManualUse('strikeAndSwap') },
+  // 👇 羈絆爆發系 (親密度需達160以上才能學會)
+  tm_bondPower: { name:'秘笈:羈絆爆發·猛襲(2200圓)', desc:'教導「羈絆爆發·猛襲」(命中80%)。傷害隨親密度提升,親密度需達160才能學會。', price: 2200, use: createManualUse('bondBurstPower') },
+  tm_bondAcc:   { name:'秘笈:羈絆爆發·鎖定(2200圓)', desc:'教導「羈絆爆發·鎖定」(命中80%)。親密度需達160才能學會。', price: 2200, use: createManualUse('bondBurstAcc') },
+  tm_bondHeal:  { name:'秘笈:羈絆爆發·治癒(2200圓)', desc:'教導「羈絆爆發·治癒」(命中80%)。恢復量隨親密度提升,親密度需達160才能學會。', price: 2200, use: createManualUse('bondBurstHeal') },
+  tm_bondSelf:  { name:'秘笈:羈絆爆發·奮起(2200圓)', desc:'教導「羈絆爆發·奮起」(命中80%)。自身攻防提升幅度隨親密度提升,親密度需達160才能學會。', price: 2200, use: createManualUse('bondBurstSelfBuff') },
+  tm_bondDebuff:{ name:'秘笈:羈絆爆發·威壓(2200圓)', desc:'教導「羈絆爆發·威壓」(命中80%)。降低對方攻防的幅度隨親密度提升,親密度需達160才能學會。', price: 2200, use: createManualUse('bondBurstDebuff') },
+  tm_bondDouble:{ name:'秘笈:羈絆爆發·連擊(2500圓)', desc:'教導「羈絆爆發·連擊」(命中80%)。有機率連續攻擊兩次,機率隨親密度提升,親密度需達160才能學會。', price: 2500, use: createManualUse('bondBurstDouble') },
+  tm_bondEvade: { name:'秘笈:羈絆爆發·迴避(2200圓)', desc:'教導「羈絆爆發·迴避」(命中80%)。提高迴避下一次攻擊的機率,親密度需達160才能學會。', price: 2200, use: createManualUse('bondBurstEvade') },
+  tm_bondCrit:  { name:'秘笈:羈絆爆發·會心(2200圓)', desc:'教導「羈絆爆發·會心」(命中80%)。提高下一次攻擊的會心一擊率,親密度需達160才能學會。', price: 2200, use: createManualUse('bondBurstCrit') },
+  // 👇 共鳴專屬招式 (該共鳴沒發動時無法使出)
+  tm_swarmSting:  { name:'秘笈:蟲群亂舞(1800圓)', desc:'教導「蟲群亂舞」(威力1.4,命中90%)。需要隊伍的「蟲類共鳴」發動中才能使出。', price: 1800, use: createManualUse('swarmSting') },
+  tm_wildInstinct:{ name:'秘笈:野性直覺(1800圓)', desc:'教導「野性直覺」(威力1.2,必中)。攻擊後提升自身防禦力。需要「動物共鳴」發動中才能使出。', price: 1800, use: createManualUse('wildInstinct') },
+  tm_natureBloom: { name:'秘笈:自然綻放(1800圓)', desc:'教導「自然綻放」(必中)。恢復30%HP。需要「花草共鳴」發動中才能使出。', price: 1800, use: createManualUse('natureBloom') },
+  tm_overclock:   { name:'秘笈:超頻驅動(1800圓)', desc:'教導「超頻驅動」(威力1.5,命中85%)。攻擊後自身防禦力下降。需要「電器機械共鳴」發動中才能使出。', price: 1800, use: createManualUse('overclock') },
+  tm_crystalBarrier:{ name:'秘笈:結晶壁壘(1800圓)', desc:'教導「結晶壁壘」(必中)。大幅提升自身防禦力。需要「礦石光源共鳴」發動中才能使出。', price: 1800, use: createManualUse('crystalBarrier') },
+  tm_junkStorm:   { name:'秘笈:雜物風暴(1800圓)', desc:'教導「雜物風暴」(威力1.3,命中90%)。需要「雜貨器物共鳴」發動中才能使出。', price: 1800, use: createManualUse('junkStorm') },
+  // 👇 屬性剋制招式
+  tm_adaptive:  { name:'秘笈:因勢而動(2000圓)', desc:'教導「因勢而動」(威力1.3,命中95%)。自動變成剋制對方的屬性;對方無屬性時,改用自己的屬性。', price: 2000, use: createManualUse('adaptiveStrike') },
   paintPotion: {name: '✨異色幻彩藥水(16888圓)',desc: '極度稀有的神奇藥水，使用後能為怪獸染上全新的隨機色彩！',price: 16888, // 設定極高價，主要靠轉盤取得
 use: (m) => {const hue = Math.floor(Math.random() * 360);m.altColor = `hsl(${hue}, 85%, 65%)`; toast(`✨ 奇妙的事情發生了！${MonsterUtil.species(m).name} 閃爍著全新的光芒！`);return true; // 使用成功，消耗道具// 隨機產生一個漂亮的 HSL 顏色
 }},
@@ -236,7 +286,7 @@ const QUESTS = [
   { id:'explore3',  chapter:2, name:'探索者',       desc:'抵達地下洞窟', check:()=> visitedMaps.has('map3') },
   { id:'beatAllT3', chapter:2, name:'洞窟霸主',     desc:'擊敗洞窟北側全部訓練家', check:()=> TRAINERS4.every(t=>trainersDefeated.has(t.id)), progress:()=> `${TRAINERS4.filter(t=>trainersDefeated.has(t.id)).length}/${TRAINERS4.length}` },
   { id:'dex3',      chapter:2, name:'冒險筆記-1',   desc:'遇過8種不同怪物', check:()=> seenDex.size >= 8 },
-  { id:'rich_boy3', chapter:2, name:'冒險資金',     desc:'身上累積超過 500 金幣', check:()=> GameState.player.coins >= 500, progress:()=> `${Math.min(GameState.player.coins, 500)}/500` },
+  { id:'rich_boy3', chapter:2, name:'冒險資金',     desc:'累積獲得超過 500 金幣', check:()=> (GameState.player.totalEarnedCoins||0) >= 500, progress:()=> `${Math.min(GameState.player.totalEarnedCoins||0, 500)}/500` },
   { id:'q_fireA',   chapter:2, name:'神秘火種',     desc:'(隱藏獎勵) 完成第二章探索，領取不滅聖火A', check:()=> visitedMaps.has('map3') && seenDex.size >= 8, onClaim:()=> { GameState.inventory.fa = 1; toast('🔥 獲得不滅聖火A！'); SaveManager.save(); } },
 
   // --- 第三章 ---
@@ -248,7 +298,7 @@ const QUESTS = [
 
   // --- 第四章 ---
   { id:'shop5',     chapter:4, name:'上裝備',       desc:'購買力量護符', check:()=>(GameState.inventory.atkCharm||0)>=1 }, 
-  { id:'rich_boy5', chapter:4, name:'第一桶金',     desc:'身上累積超過 1500 金幣', check:()=> GameState.player.coins >= 1500, progress:()=> `${Math.min(GameState.player.coins, 1500)}/1500` },
+  { id:'rich_boy5', chapter:4, name:'第一桶金',     desc:'累積獲得超過 1500 金幣', check:()=> (GameState.player.totalEarnedCoins||0) >= 1500, progress:()=> `${Math.min(GameState.player.totalEarnedCoins||0, 1500)}/1500` },
   { id:'win100',    chapter:4, name:'慶百勝',       desc:'累積戰勝 100 場戰鬥', check:()=> (GameState.player.totalWins || 0) >= 100, progress:()=> `${Math.min((GameState.player.totalWins || 0), 100)}/100` },
   { id:'catch3',    chapter:4, name:'小小收藏家',   desc:'捕捉3種不同的怪物', check:()=> dex.size>=3, progress:()=> `${Math.min(dex.size,3)}/3` },
   { id:'dex6',      chapter:4, name:'冒險筆記-2',   desc:'遇過24種不同怪物', check:()=> seenDex.size >= 24 },
@@ -264,7 +314,7 @@ const QUESTS = [
   { id:'shop7',     chapter:6, name:'購買伴手禮',   desc:'購買大師護符', check:()=>(GameState.inventory.masterCharm||0)>=1 }, 
   { id:'catch_fire',chapter:6, name:'紀念捕捉',     desc:'捕捉任意一隻火屬性怪物', check:()=> [...dex].some(id=> { const sp = SPECIES.find(s=>s.id===id); return sp && sp.type==='fire'; }) }, 
   { id:'explore_fire',chapter:6,name:'抵達景點',    desc:'抵達熾熱山谷 (map10)', check:()=> visitedMaps.has('map10') },
-  { id:'beatAllT6', chapter:6, name:'在地交流',     desc:'擊敗中央廣場全部訓練家', check:()=> TRAINERS9.every(t=>trainersDefeated.has(t.id)), progress:()=> `${TRAINERS9.filter(t=>trainersDefeated.has(t.id)).length}/${TRAINERS9.length}` },
+  { id:'beatAllT6', chapter:6, name:'在地交流',     desc:'擊敗中央廣場全部訓練家', check:()=> TRAINERS_PLAZA.every(t=>trainersDefeated.has(t.id)), progress:()=> `${TRAINERS_PLAZA.filter(t=>trainersDefeated.has(t.id)).length}/${TRAINERS_PLAZA.length}` },
 { id:'lv25',      chapter:6, name:'收穫滿滿',   desc:'隊伍中有 4 隻等級達到 35 以上的怪物', check:()=> party.filter(m => m.level >= 35).length >= 4 },
   // --- 第七章 (神獸海神 + 充能閘門A) ---
   { id:'explore_sea',chapter:7, name:'航向大海',    desc:'抵達蔚藍海域 (map12)', check:()=> visitedMaps.has('map12') },
@@ -275,7 +325,7 @@ const QUESTS = [
 
 
   // --- 第八章 ---
-  { id:'rich_boy8', chapter:8, name:'富翁',         desc:'身上累積超過 3500 金幣', check:()=> GameState.player.coins >= 3500, progress:()=> `${Math.min(GameState.player.coins, 3500)}/3500` },
+  { id:'rich_boy8', chapter:8, name:'富翁',         desc:'累積獲得超過 3500 金幣', check:()=> (GameState.player.totalEarnedCoins||0) >= 3500, progress:()=> `${Math.min(GameState.player.totalEarnedCoins||0, 3500)}/3500` },
   { id:'win200',    chapter:8, name:'慶二百勝',     desc:'累積戰勝 200 場戰鬥', check:()=> (GameState.player.totalWins || 0) >= 200, progress:()=> `${Math.min((GameState.player.totalWins || 0), 200)}/200` },
   { id:'lv30',      chapter:8, name:'三十而立',     desc:'任一隊員等級達到30', check:()=> party.some(m=>m.level>=30) },
   { id:'explore_gra',chapter:8, name:'旅程尾聲',    desc:'抵達大草原-南 (map22)', check:()=> visitedMaps.has('map22') },
@@ -291,7 +341,7 @@ const QUESTS = [
   { id:'seeAll',    chapter:10, name:'圖鑑達人',    desc:'遇過除了神獸以外的所有怪物', check:()=> seenDex.size>=QUEST_NON_LEGENDARY_COUNT, progress:()=> `${Math.min(seenDex.size,QUEST_NON_LEGENDARY_COUNT)}/${QUEST_NON_LEGENDARY_COUNT}` },
   { id:'shop10',    chapter:10, name:'堅毅之盾',    desc:'購買鐵壁盾', check:()=>(GameState.inventory.ironShield||0)>=1 },
   { id:'lv40',      chapter:10, name:'戰力十足',    desc:'任一隊員等級達到50', check:()=> party.some(m=>m.level>=50) },
-  { id:'rich_boy9', chapter:10, name:'富豪',        desc:'身上累積超過 5500 金幣', check:()=> GameState.player.coins >= 5500, progress:()=> `${Math.min(GameState.player.coins, 5500)}/5500` },
+  { id:'rich_boy9', chapter:10, name:'富豪',        desc:'累積獲得超過 5500 金幣', check:()=> (GameState.player.totalEarnedCoins||0) >= 5500, progress:()=> `${Math.min(GameState.player.totalEarnedCoins||0, 5500)}/5500` },
   { id:'step8888',  chapter:10, name:'千里之行',    desc:'累積移動 8888 步', check:()=> (GameState.player.totalSteps || 0) >= 8888, progress:()=> `${Math.min(GameState.player.totalSteps || 0, 8888)}/8888` },
 // --- 🌟 神獸傳說 (獨立頁面) ---
   { id: 'trial_seagod', chapter: 99, name: '🌊 深淵的守護者', desc: '解開海神遺跡的謎題並擊敗深淵海神。', check: () => trainersDefeated.has('boss_seagod'), isClaimed: () => dex.has('92'), onClaim: () => { const dest = addToPartyOrStorage(makeMonster('92', 40)); dex.add('92'); seenDex.add('92'); updateHud(); SaveManager.save(); toast(dest === 'party' ? '🌊 深淵海神加入了隊伍！' : '🌊 深淵海神已送往倉庫！'); } },
@@ -424,6 +474,7 @@ function renderQuestScreen(){
       btn.onclick = ()=>{
         dailyProgress.claimed[q.id] = true;
         GameState.player.coins += q.reward;
+        GameState.player.totalEarnedCoins = (GameState.player.totalEarnedCoins || 0) + q.reward;
         updateCoinsHud();
         toast(`領取每日任務獎勵:💰${q.reward}`);
         renderQuestScreen();
@@ -482,16 +533,18 @@ function renderWorldMapScreen() {
         
         // 內容：有去過才顯示數字，沒去過顯示 ?
         if (isVisited) {
+            const biome = (typeof getMapBiome === 'function') ? getMapBiome(mapId) : null;
+            const biomeTag = biome ? `<div style="font-size:9px;opacity:.8;">${biome.icon}</div>` : '';
             if (isTeleport && !isCurrent) {
-                cell.innerHTML = `<div>${num}</div><div style="font-size:10px; margin-top:2px;">✈️</div>`;
+                cell.innerHTML = `<div>${num}</div>${biomeTag}<div style="font-size:10px; margin-top:2px;">✈️</div>`;
                 cell.onclick = () => {
                     closeOverlays();
                     switchMap(mapId, 2, 2);
                 };
             } else if (isCurrent) {
-                cell.innerHTML = `<div>${num}</div><div style="font-size:9px; margin-top:2px; font-weight:normal;">(目前位置)</div>`;
+                cell.innerHTML = `<div>${num}</div>${biomeTag}<div style="font-size:9px; margin-top:2px; font-weight:normal;">(目前位置)</div>`;
             } else {
-                cell.textContent = num;
+                cell.innerHTML = `<div>${num}</div>${biomeTag}`;
             }
         } else {
             cell.textContent = '?';
@@ -507,14 +560,17 @@ function renderWorldMapScreen() {
         
         // 抓取地圖名稱，若是 map6_1 特別處理一下名稱
         let mapName = '???';
+        let biomeText = '';
         if (isVisited) {
             mapName = (mapId === 'map6_1') ? '雪山步道/北峰' : (WORLDS[mapId]?.name || '未知區域');
+            const biome = (typeof getMapBiome === 'function') ? getMapBiome(mapId) : null;
+            if (biome) biomeText = ` ${biome.icon}${biome.name}`;
         }
-        
+
         const isCurrent = GameState.player.mapId === mapId || (mapId==='map6_1' && GameState.player.mapId==='map6_2');
-        
+
         const legItem = document.createElement('div');
-        legItem.textContent = `${i.toString().padStart(2, '0')}: ${mapName}`;
+        legItem.textContent = `${i.toString().padStart(2, '0')}: ${mapName}${biomeText}`;
         
         // 目前位置標紅高亮
         if (isCurrent) {
@@ -524,20 +580,48 @@ function renderWorldMapScreen() {
         legendEl.appendChild(legItem);
     }
 }
+let currentShopTab = 'food'; // 目前的商店分頁:food/equip/tm/other
+
+function buyItem(id, item){
+  if(GameState.player.coins < item.price) return;
+  GameState.player.coins -= item.price;
+  GameState.inventory[id] = (GameState.inventory[id]||0) + 1;
+  updateCoinsHud(); toast(`購買了 ${item.name}!`); renderShopScreen(); SaveManager.save();
+}
+
+function renderShopItemCard(id, item, list){
+  if (item.unlockCondition && !item.unlockCondition()) return;
+  const card = document.createElement('div');
+  card.className='shopCard';
+  const currentOwned = GameState.inventory[id] || 0;
+  const isMaxed = item.maxBuy && currentOwned >= item.maxBuy;
+  const lvText = item.maxBuy ? ` (Lv.${currentOwned}/${item.maxBuy})` : '';
+  card.innerHTML = `<div><b>${item.name}</b><span style="color:var(--gold);">${lvText}</span><small>${item.desc}</small></div>`;
+  const btn = document.createElement('button');
+  btn.className='actBtn';
+  btn.textContent = isMaxed ? '已達上限' : `💰${item.price} 購買`;
+  btn.disabled = GameState.player.coins < item.price || isMaxed;
+  btn.onclick = () => buyItem(id, item);
+  card.appendChild(btn);
+  list.appendChild(card);
+}
+
 function renderShopScreen(){
   document.getElementById('shopCoins').textContent = `目前金幣:💰 ${GameState.player.coins}`;
- // ... (保留前面的 function 宣告與 shopCoins 更新) ...
   const list = document.getElementById('shopList');
   list.innerHTML='';
-  // 👇 新增：前往幸運遊樂場的按鈕
-  const mgBtn = document.createElement('button');
-  mgBtn.className = 'actBtn';
-  mgBtn.style.cssText = 'width:100%; margin-bottom: 12px; border-color: var(--gold); color: var(--gold);';
-  mgBtn.textContent = '🎰 前往幸運遊樂場';
-  mgBtn.onclick = () => openMinigameScreen();
-  list.appendChild(mgBtn);
 
-  // 👇 新增：融合機入口(第四章全部任務完成後解鎖)
+  // 👇 前往幸運遊樂場的按鈕(第六章全部任務完成後解鎖)
+  if(QUESTS.filter(q => q.chapter === 6).every(q => q.check())){
+    const mgBtn = document.createElement('button');
+    mgBtn.className = 'actBtn';
+    mgBtn.style.cssText = 'width:100%; margin-bottom: 12px; border-color: var(--gold); color: var(--gold);';
+    mgBtn.textContent = '🎰 前往幸運遊樂場';
+    mgBtn.onclick = () => openMinigameScreen();
+    list.appendChild(mgBtn);
+  }
+
+  // 👇 融合機入口(第四章全部任務完成後解鎖)
   if(QUESTS.filter(q => q.chapter === 4).every(q => q.check())){
     const fusionBtn = document.createElement('button');
     fusionBtn.className = 'actBtn';
@@ -547,96 +631,75 @@ function renderShopScreen(){
     list.appendChild(fusionBtn);
   }
 
-  // --- 消耗品區 ---
-  const consumeHeader = document.createElement('div');
-  consumeHeader.style.cssText='font-size:11px;color:#9aa5ce;margin:4px 0;';
-  consumeHeader.textContent = '── 消耗品 ──';
-  list.appendChild(consumeHeader);
-  
-// 🌟 只渲染不是 tm_ 開頭的道具
-// 🌟 排除 tm_ 技能秘笈，並且排除帶有 keyItem 標記的任務重要道具
-Object.entries(ITEMS).filter(([id, item]) => !id.startsWith('tm_') && !item.keyItem).forEach(([id,item])=>{
-      if (item.unlockCondition && !item.unlockCondition()) return;
-    const card = document.createElement('div');
-    card.className='shopCard';
-    
-    // 🌟 新增判斷：取得目前擁有數量與等級上限
-    const currentOwned = GameState.inventory[id] || 0;
-    const isMaxed = item.maxBuy && currentOwned >= item.maxBuy;
-    const lvText = item.maxBuy ? ` (Lv.${currentOwned}/${item.maxBuy})` : '';
-    
-    card.innerHTML = `<div><b>${item.name}</b><span style="color:var(--gold);">${lvText}</span><small>${item.desc}</small></div>`;
-    const btn = document.createElement('button');
-    btn.className='actBtn';
-    btn.textContent = isMaxed ? '已達上限' : `💰${item.price} 購買`;
-    btn.disabled = GameState.player.coins < item.price || isMaxed;
-    btn.onclick = ()=>{
-      if(GameState.player.coins < item.price) return;
-      GameState.player.coins -= item.price;
-      GameState.inventory[id] = (GameState.inventory[id]||0) + 1;
-      updateCoinsHud(); toast(`購買了 ${item.name}!`); renderShopScreen(); SaveManager.save();
-    };
-    card.appendChild(btn); list.appendChild(card);
+  // 🌟 分類分頁列
+  const tabs = [
+    { id:'food',  label:'🍎 食物' },
+    { id:'equip', label:'🛡️ 裝備' },
+    { id:'tm',    label:'📖 秘笈' },
+    { id:'other', label:'📦 其他' },
+  ];
+  const tabRow = document.createElement('div');
+  tabRow.style.cssText = 'display:flex; gap:4px; margin-bottom:10px;';
+  tabs.forEach(t=>{
+    const tb = document.createElement('button');
+    tb.className = 'actBtn';
+    tb.style.cssText = 'flex:1; padding:6px 2px; font-size:12px;' + (currentShopTab===t.id ? 'border-color:var(--gold); color:var(--gold); font-weight:bold;' : '');
+    tb.textContent = t.label;
+    tb.onclick = () => { currentShopTab = t.id; renderShopScreen(); };
+    tabRow.appendChild(tb);
   });
-  // --- 🌟 技能秘笈區 ---
-  const manualHeader = document.createElement('div');
-  manualHeader.style.cssText='font-size:11px;color:#9aa5ce;margin:10px 0 4px;';
-  manualHeader.textContent = '── 技能秘笈(可到隊伍狀態畫面管理) ──';
-  list.appendChild(manualHeader);
-  
-  // 🌟 只渲染 tm_ 開頭的道具
-  Object.entries(ITEMS).filter(([id]) => id.startsWith('tm_')).forEach(([id,item])=>{
-    const card = document.createElement('div');
-    card.className='shopCard';
-    card.innerHTML = `<div><b>${item.name}</b><small>${item.desc}</small></div>`;
-    const btn = document.createElement('button');
-    btn.className='actBtn';
-    btn.textContent = `💰${item.price} 購買`;
-    btn.disabled = GameState.player.coins < item.price;
-    btn.onclick = ()=>{
-      if(GameState.player.coins < item.price) return;
-      GameState.player.coins -= item.price;
-      GameState.inventory[id] = (GameState.inventory[id]||0) + 1;
-      updateCoinsHud(); toast(`購買了 ${item.name}!`); renderShopScreen(); SaveManager.save();
-    };
-    card.appendChild(btn); list.appendChild(card);
-  });
+  list.appendChild(tabRow);
 
-// ... (保留下面的攜帶裝備區) ...
-  // --- 攜帶裝備區 ---
-  const heldHeader = document.createElement('div');
-  heldHeader.style.cssText='font-size:11px;color:#9aa5ce;margin:10px 0 4px;';
-  heldHeader.textContent = '── 攜帶裝備(買回去要到隊伍狀態畫面裝備)──';
-  list.appendChild(heldHeader);
-  
-  Object.entries(HELD_ITEMS).forEach(([id,item])=>{
-    // 🌟 核心邏輯：同樣檢查裝備是否已解鎖
-    if (item.unlockCondition && !item.unlockCondition()) return;
+  const FOOD_KEYS = Object.keys(FOOD_FAVORITES);
 
-    const card = document.createElement('div');
-    card.className='shopCard';
-    card.innerHTML = `<div><b>${item.name}</b><small>${item.desc}</small></div>`;
-    const btn = document.createElement('button');
-    btn.className='actBtn';
-    btn.textContent = `💰${item.price} 購買`;
-    btn.disabled = GameState.player.coins < item.price;
-    btn.onclick = ()=>{
-      if(GameState.player.coins < item.price) return;
-      GameState.player.coins -= item.price;
-      GameState.inventory[id] = (GameState.inventory[id]||0) + 1;
-      updateCoinsHud();
-      toast(`購買了 ${item.name}!`);
-      renderShopScreen();
-      SaveManager.save();
-    };
-    card.appendChild(btn);
-    list.appendChild(card);
-  });
+  if(currentShopTab === 'food'){
+    Object.entries(ITEMS).filter(([id]) => FOOD_KEYS.includes(id)).forEach(([id,item]) => renderShopItemCard(id, item, list));
+
+  } else if(currentShopTab === 'equip'){
+    Object.entries(HELD_ITEMS).forEach(([id,item]) => renderShopItemCard(id, item, list));
+
+  } else if(currentShopTab === 'tm'){
+    const tip = document.createElement('p');
+    tip.style.cssText='font-size:11px;color:#9aa5ce;margin-bottom:6px;';
+    tip.textContent = '買回去要到隊伍狀態畫面教學';
+    list.appendChild(tip);
+    Object.entries(ITEMS).filter(([id]) => id.startsWith('tm_')).forEach(([id,item]) => renderShopItemCard(id, item, list));
+
+  } else if(currentShopTab === 'other'){
+    const otherEntries = Object.entries(ITEMS).filter(([id, item]) => !id.startsWith('tm_') && !item.keyItem && !FOOD_KEYS.includes(id));
+    const isNonConsumable = (item) => !!item.noTarget || !!item.maxBuy || /被動/.test(item.desc);
+    const consumables = otherEntries.filter(([,item]) => !isNonConsumable(item));
+    const nonConsumables = otherEntries.filter(([,item]) => isNonConsumable(item));
+
+    const cols = document.createElement('div');
+    cols.style.cssText = 'display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:start;';
+
+    const colA = document.createElement('div');
+    const colAHeader = document.createElement('div');
+    colAHeader.style.cssText='font-size:11px;color:#9aa5ce;margin-bottom:4px;';
+    colAHeader.textContent = '── 消耗品 ──';
+    colA.appendChild(colAHeader);
+    consumables.forEach(([id,item]) => renderShopItemCard(id, item, colA));
+
+    const colB = document.createElement('div');
+    const colBHeader = document.createElement('div');
+    colBHeader.style.cssText='font-size:11px;color:#9aa5ce;margin-bottom:4px;';
+    colBHeader.textContent = '── 非消耗品 ──';
+    colB.appendChild(colBHeader);
+    nonConsumables.forEach(([id,item]) => renderShopItemCard(id, item, colB));
+
+    cols.appendChild(colA); cols.appendChild(colB);
+    list.appendChild(cols);
+  }
 }
 // ==========================================
 // 🎰 幸運遊樂場 (Minigame System)
 // ==========================================
 function openMinigameScreen() {
+  if (!QUESTS.filter(q => q.chapter === 6).every(q => q.check())) {
+    toast('🔒 幸運遊樂場需要完成第六章全部任務才能開放！');
+    return;
+  }
   closeOverlays();
   overlayOpen = 'minigame';
   ensureDailyFresh();
@@ -794,6 +857,7 @@ function playMinigame(mode) {
   // 結算獲得金幣
   let finalCoins = Math.max(0, Math.floor(finalPoints * fee));
   GameState.player.coins += finalCoins;
+  GameState.player.totalEarnedCoins = (GameState.player.totalEarnedCoins || 0) + finalCoins;
   SaveManager.save();
 
   logHtml += `<br><strong style="color:var(--gold); font-size:14px;">最終結算點數: ${finalPoints} 點 ➜ 獲得 ${finalCoins} 金幣！</strong>`;
@@ -809,25 +873,60 @@ function renderBagScreen(){
   list.innerHTML='';
   const owned = Object.entries(GameState.inventory).filter(([id,n])=> n>0);
   if(owned.length===0){ list.innerHTML='<div style="text-align:center;color:#666;">背包是空的,可以去商店買點東西</div>'; return; }
+
+  const cols = document.createElement('div');
+  cols.style.cssText = 'display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:start;';
+  const colConsume = document.createElement('div');
+  const colConsumeHeader = document.createElement('div');
+  colConsumeHeader.style.cssText='font-size:11px;color:#9aa5ce;margin-bottom:4px;';
+  colConsumeHeader.textContent = '── 消耗品 ──';
+  colConsume.appendChild(colConsumeHeader);
+  const colOther = document.createElement('div');
+  const colOtherHeader = document.createElement('div');
+  colOtherHeader.style.cssText='font-size:11px;color:#9aa5ce;margin-bottom:4px;';
+  colOtherHeader.textContent = '── 非消耗品/裝備 ──';
+  colOther.appendChild(colOtherHeader);
+
   owned.forEach(([id,n])=>{
-    const item = ITEMS[id];
+    // 🌟 修正:抽獎轉盤抽到的裝備(HELD_ITEMS)不在ITEMS裡,原本會導致item是undefined而直接崩潰
+    const item = ITEMS[id] || HELD_ITEMS[id];
+    if(!item) return; // 防呆:萬一真的找不到定義,就跳過這筆,不要讓整個背包畫面壞掉
+    const isHeldItem = !ITEMS[id] && !!HELD_ITEMS[id];
+
     const card = document.createElement('div');
     card.className='bagCard';
     card.innerHTML = `<div><b>${item.name}</b> x${n}<small>${item.desc}</small></div>`;
     const btn = document.createElement('button');
     btn.className='actBtn';
-    btn.textContent='使用';
-btn.onclick = () => {
-      // 🌟 加入免目標道具 (如地圖) 的判斷
-      if (item.noTarget) {
-          item.use();
-      } else {
-          openBagTargetPicker(id);
-      }
-    };
-        card.appendChild(btn);
-    list.appendChild(card);
+
+    if (isHeldItem) {
+      // 裝備類道具不能直接「使用」,要去隊伍狀態畫面裝備
+      btn.textContent = '前往裝備';
+      btn.onclick = () => {
+        closeOverlays();
+        overlayOpen = 'status';
+        renderStatusScreen();
+        document.getElementById('statusOverlay').style.display = 'flex';
+      };
+    } else {
+      btn.textContent = '使用';
+      btn.onclick = () => {
+        if (item.noTarget) {
+            item.use();
+        } else {
+            openBagTargetPicker(id);
+        }
+      };
+    }
+    card.appendChild(btn);
+
+    const isNonConsumable = isHeldItem || !!item.noTarget || !!item.maxBuy || /被動/.test(item.desc||'');
+    (isNonConsumable ? colOther : colConsume).appendChild(card);
   });
+
+  cols.appendChild(colConsume);
+  cols.appendChild(colOther);
+  list.appendChild(cols);
 }
 function playPremiumRoulette() {
     GameState.player.gems = GameState.player.gems || 0;
@@ -849,6 +948,7 @@ function playPremiumRoulette() {
     if (r < 0.30) {
         // 30% 機率：大獎金幣回本 (賺 500)
         GameState.player.coins += 1500;
+        GameState.player.totalEarnedCoins = (GameState.player.totalEarnedCoins || 0) + 1500;
         msg = '🎰 叮叮叮！大回饋！獲得 💰1500 金幣！';
         updateCoinsHud();
         
@@ -994,6 +1094,7 @@ function renderTradeReward(npc){
         if(!confirm(`確定要用 ${sp.name} 交換 ${m.level*8} 金幣嗎?這無法復原。`)) return;
         GameState.player.hasTraded = true; // 🌟 記錄已交易
         GameState.player.coins += m.level*8;
+        GameState.player.totalEarnedCoins = (GameState.player.totalEarnedCoins || 0) + m.level*8;
         party.splice(i,1);
         updateHud(); updateCoinsHud();
         toast(`交出了 ${sp.name},獲得 💰${m.level*8}!`);
@@ -1041,43 +1142,20 @@ function renderTradeSwap(npc){
       btn.className='actBtn'; btn.style.cssText='width:100%;text-align:left;margin-bottom:6px;';
       btn.textContent = `${sp.name} Lv.${m.level}`;
 btn.onclick = ()=>{
-      // 1. 攔截玩家：不准拿神獸去換代碼！
       if (sp.legendary) { toast('無法交出神獸進行交換！'); return; }
-        
-      if(!confirm(`確定要提交 ${sp.name} 來交換 ${incomingSp.name} 嗎?這無法復原。`)) return;
-      
-// 👇 🌟 數位異變判定核心 (升級為多物種支援)！
-      let finalSpeciesId = obj.s;
-      let isMutated = false;
-      
-      // 突變字典 (原本ID -> 突變後ID)
-      const mutations = {
-          '71': '107', // 蛛靈 -> 網域魔蛛
-          '36': '112', // Zapbit -> 電馭駭兔
-          '55': '113'  // 沉思椅 -> 全知網椅
-      };
-      
-      if (mutations[finalSpeciesId]) {
-          finalSpeciesId = mutations[finalSpeciesId];
-          isMutated = true;
-      }
 
-      // 用最終判定好的 ID 來生成怪獸
-      const newMon = makeMonster(finalSpeciesId, obj.l, obj.iv);
-      if(obj.c) newMon.altColor = obj.c;
-      
+      if(!confirm(`確定要提交 ${sp.name} 來交換 ${offerSp.name} 嗎?這無法復原。`)) return;
+
+      const newMon = makeMonster(npc.offerSpecies, npc.offerLevel, generateIV());
+      if(npc.offerColor) newMon.altColor = npc.offerColor;
+
       party.splice(i,1,newMon);
-      dex.add(finalSpeciesId); 
-      seenDex.add(finalSpeciesId);
+      dex.add(npc.offerSpecies);
+      seenDex.add(npc.offerSpecies);
       updateHud();
-      
-      // 👇 根據是否發生變異，跳出不同的驚喜提示
-      if (isMutated) {
-          alert(`⚠️ 警告：資料傳輸過程中發生異常！\n\n${incomingSp.name} 的基因序列被數位亂碼覆寫...\n✨ 發生了數位異變！進化成了 ${MonsterUtil.species(newMon).name}！`);
-      } else {
-          toast(`✅ ${obj.c?'✨異色 ':''}${MonsterUtil.species(newMon).name} 加入了隊伍!(技能已重置)`);
-      }
-      
+
+      toast(`✅ ${npc.offerColor?'✨異色 ':''}${offerSp.name} 加入了隊伍!(技能已重置為初始技能)`);
+
       SaveManager.save();
       closeOverlays();
         };
@@ -1247,12 +1325,37 @@ function renderTradeCodeSubmit(obj){
       if (sp.legendary) { toast('無法交出神獸進行交換！'); return; }
         
       if(!confirm(`確定要提交 ${sp.name} 來交換 ${incomingSp.name} 嗎?這無法復原。`)) return;
-      const newMon = makeMonster(obj.s, obj.l, obj.iv);
+
+      // 👇 🌟 數位異變判定核心 (跨存檔傳送資料時,特定種族有機會發生基因突變)
+      let finalSpeciesId = obj.s;
+      let isMutated = false;
+
+      // 突變字典 (原本ID -> 突變後ID)
+      const mutations = {
+          '71': '107', // 蛛靈 -> 網域魔蛛
+          '36': '112', // Zapbit -> 電馭駭兔
+          '55': '113'  // 沉思椅 -> 全知網椅
+      };
+
+      if (mutations[finalSpeciesId]) {
+          finalSpeciesId = mutations[finalSpeciesId];
+          isMutated = true;
+      }
+
+      // 用最終判定好的 ID 來生成怪獸
+      const newMon = makeMonster(finalSpeciesId, obj.l, obj.iv);
       if(obj.c) newMon.altColor = obj.c;
       party.splice(i,1,newMon);
-      dex.add(obj.s); seenDex.add(obj.s);
+      dex.add(finalSpeciesId); seenDex.add(finalSpeciesId);
       updateHud();
-      toast(`✅ ${obj.c?'✨異色 ':''}${MonsterUtil.species(newMon).name} 加入了隊伍!(技能已重置為初始技能)`);
+
+      // 👇 根據是否發生變異，跳出不同的驚喜提示
+      if (isMutated) {
+          alert(`⚠️ 警告：資料傳輸過程中發生異常！\n\n${incomingSp.name} 的基因序列被數位亂碼覆寫...\n✨ 發生了數位異變！進化成了 ${MonsterUtil.species(newMon).name}！`);
+      } else {
+          toast(`✅ ${obj.c?'✨異色 ':''}${MonsterUtil.species(newMon).name} 加入了隊伍!(技能已重置為初始技能)`);
+      }
+
       SaveManager.save();
       closeOverlays();
     };
@@ -1286,16 +1389,19 @@ function renderMoveRecallHome(){
   if(party.length===0){
     content.innerHTML += '<p style="font-size:12px;color:#e94560;">隊伍是空的。</p>';
   }
+  const grid = document.createElement('div');
+  grid.style.cssText='display:grid; grid-template-columns:1fr 1fr; gap:6px;';
   party.forEach((m)=>{
     const sp = MonsterUtil.species(m);
     const forgotten = (m.moveHistory||[]).filter(id=> !m.moves.includes(id));
     const btn = document.createElement('button');
-    btn.className='actBtn'; btn.style.cssText='width:100%;text-align:left;margin-bottom:6px;';
+    btn.className='actBtn'; btn.style.cssText='width:100%;text-align:left;';
     btn.textContent = `${sp.name} Lv.${m.level}(可回憶 ${forgotten.length} 招)`;
     btn.disabled = forgotten.length===0;
     btn.onclick = ()=> renderMoveRecallPicker(m);
-    content.appendChild(btn);
+    grid.appendChild(btn);
   });
+  content.appendChild(grid);
   const back = document.createElement('button');
   back.className='actBtn backBtn'; back.style.width='100%'; back.style.marginTop='8px';
   back.textContent='← 離開';
@@ -1312,14 +1418,35 @@ function renderMoveRecallPicker(m){
   content.appendChild(info);
   const forgotten = (m.moveHistory||[]).filter(id=> !m.moves.includes(id));
   forgotten.forEach(id=>{
-    const lastMoveName = moveDisplayName(m.moves[m.moves.length-1], m);
     const btn = document.createElement('button');
     btn.className='actBtn'; btn.style.cssText='width:100%;text-align:left;margin-bottom:6px;';
-    btn.textContent = `回憶:${moveDisplayName(id,m)}(取代目前的 ${lastMoveName})`;
+    btn.textContent = `回憶:${moveDisplayName(id,m)}`;
+    btn.onclick = ()=> renderMoveRecallSlotPicker(m, id);
+    content.appendChild(btn);
+  });
+  const back = document.createElement('button');
+  back.className='actBtn backBtn'; back.style.width='100%'; back.style.marginTop='8px';
+  back.textContent='← 返回';
+  back.onclick = renderMoveRecallHome;
+  content.appendChild(back);
+}
+// 🌟 選好要回憶的招式之後,讓玩家自己選要取代目前的哪一招(而不是自動取代最後一格)
+function renderMoveRecallSlotPicker(m, newMoveId){
+  const content = document.getElementById('recallContent');
+  content.innerHTML='';
+  const sp = MonsterUtil.species(m);
+  const info = document.createElement('p');
+  info.style.cssText='font-size:12px;color:#9aa5ce;';
+  info.textContent = `要用「${moveDisplayName(newMoveId,m)}」取代 ${sp.name} 目前的哪一招呢?`;
+  content.appendChild(info);
+  m.moves.forEach((oldId, i)=>{
+    const btn = document.createElement('button');
+    btn.className='actBtn'; btn.style.cssText='width:100%;text-align:left;margin-bottom:6px;';
+    btn.textContent = `取代:${moveDisplayName(oldId,m)}`;
     btn.onclick = ()=>{
-      if(!confirm(`確定要讓 ${sp.name} 回憶起 ${moveDisplayName(id,m)} 嗎?會取代目前的 ${lastMoveName}。`)) return;
-      m.moves[m.moves.length-1] = id;
-      toast(`${sp.name} 想起了 ${moveDisplayName(id,m)}!`);
+      if(!confirm(`確定要讓 ${sp.name} 忘記 ${moveDisplayName(oldId,m)},改回憶起 ${moveDisplayName(newMoveId,m)} 嗎?`)) return;
+      m.moves[i] = newMoveId;
+      toast(`${sp.name} 想起了 ${moveDisplayName(newMoveId,m)}!`);
       SaveManager.save();
       renderMoveRecallHome();
     };
@@ -1328,7 +1455,7 @@ function renderMoveRecallPicker(m){
   const back = document.createElement('button');
   back.className='actBtn backBtn'; back.style.width='100%'; back.style.marginTop='8px';
   back.textContent='← 返回';
-  back.onclick = renderMoveRecallHome;
+  back.onclick = ()=> renderMoveRecallPicker(m);
   content.appendChild(back);
 }
 
@@ -1562,14 +1689,15 @@ function renderFusionScreen(){
     const resultSp = SPECIES.find(s=>s.id===previewId) || SPECIES.find(s=>s.id===recipe.result);
 
     const card = document.createElement('div');
-    card.className = 'shopCard';
-    card.innerHTML = `<div><b>${spA?spA.name:'???'} + ${spB?spB.name:'???'} → ${resultSp?resultSp.name:'???'}</b><small>${recipe.condText}</small></div>`;
+    card.style.cssText = 'background:var(--panel); border-radius:6px; padding:8px 10px; margin-bottom:8px; border:1px solid #2a2a4a; font-size:12px;';
+    card.innerHTML = `<div><b>${spA?spA.name:'???'} + ${spB?spB.name:'???'} → ${resultSp?resultSp.name:'???'}</b><small style="display:block;color:#9aa5ce;font-size:10px;margin-top:2px;">${recipe.condText}</small></div>`;
 
     const btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display:flex; gap:6px; margin-top:4px;';
+    btnRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;';
 
     const btn = document.createElement('button');
     btn.className = 'actBtn';
+    btn.style.cssText = 'flex:1; min-width:120px;';
     btn.textContent = check.ready ? '🧬 開始融合' : (check.reason || '還不能融合');
     btn.disabled = !check.ready || !hasThunder;
     btn.onclick = () => {
@@ -1581,7 +1709,7 @@ function renderFusionScreen(){
     if((GameState.inventory.fusionBlueprint||0) > 0){
       const bpBtn = document.createElement('button');
       bpBtn.className = 'actBtn';
-      bpBtn.style.borderColor = 'var(--gold)'; bpBtn.style.color = 'var(--gold)';
+      bpBtn.style.cssText = 'flex:1; min-width:120px; border-color:var(--gold); color:var(--gold);';
       bpBtn.textContent = '📜 用圖紙(保證成功)';
       bpBtn.disabled = !check.ready || !hasThunder;
       bpBtn.onclick = () => {
@@ -1602,19 +1730,133 @@ function renderFusionScreen(){
   content.appendChild(back);
 }
 
-// ---------- 神獸 ----------
-function revealLegendary(){
-  if(!GameState.world.legendaryUnlocked){
-    GameState.world.legendaryUnlocked = true;
-    dex.add('94');
-    seenDex.add('94');
-    const dest = addToPartyOrStorage(makeMonster('94', 25));
-    updateHud();
-    toast(dest==='party'
-      ? '✨ 最終大門開啟了!始源龍 Origindra 加入了你的隊伍!'
-      : '✨ 最終大門開啟了!始源龍 Origindra 已加入,隊伍已滿所以先放進倉庫保管。');
+// ==========================================
+// 📖 說明畫面 (新手教學 / 技能 / 共鳴 / 設定)
+// ==========================================
+let currentHelpTab = 'tutorial';
+
+function openHelpScreen(){
+  closeOverlays();
+  overlayOpen = 'help';
+  renderHelpScreen();
+  document.getElementById('helpOverlay').style.display = 'flex';
+}
+
+function renderHelpScreen(){
+  const content = document.getElementById('helpContent');
+  content.innerHTML = '';
+
+  const tabs = [
+    { id:'tutorial', label:'📘 新手教學' },
+    { id:'moves',    label:'⚔️ 技能' },
+    { id:'resonance',label:'✨ 共鳴' },
+    { id:'settings', label:'⚙️ 設定' },
+  ];
+  const tabRow = document.createElement('div');
+  tabRow.style.cssText = 'display:flex; gap:4px; margin-bottom:10px; position:sticky; top:0; background:rgba(8,10,26,.97); padding-bottom:6px; z-index:2;';
+  tabs.forEach(t=>{
+    const tb = document.createElement('button');
+    tb.className = 'actBtn';
+    tb.style.cssText = 'flex:1; padding:6px 2px; font-size:12px;' + (currentHelpTab===t.id ? 'border-color:var(--gold); color:var(--gold); font-weight:bold;' : '');
+    tb.textContent = t.label;
+    tb.onclick = () => { currentHelpTab = t.id; renderHelpScreen(); };
+    tabRow.appendChild(tb);
+  });
+  content.appendChild(tabRow);
+
+  if(currentHelpTab === 'tutorial') renderHelpTutorial(content);
+  else if(currentHelpTab === 'moves') renderHelpMoves(content);
+  else if(currentHelpTab === 'resonance') renderHelpResonance(content);
+  else if(currentHelpTab === 'settings') renderHelpSettings(content);
+}
+
+function renderHelpTutorial(content){
+  const steps = [
+    ['🎮 基本操作', '用 WASD 或方向鍵移動,靠近 NPC 或機關後按 F 確認互動。按 G 可以切換跑步,移動速度加倍。'],
+    ['👊 遇到野生怪物', '在草地、洞窟等地形走動時,有機率隨機遭遇野生怪物,進入戰鬥畫面。'],
+    ['⚔️ 戰鬥流程', '每回合可以選擇「攻擊」使出技能、「捕捉」丟出捕獲珠(只對野生怪物有效)、「換人」替換隊伍中的怪物、或「逃跑」離開戰鬥(對訓練家無效)。'],
+    ['📈 升級與進化', '戰鬥勝利會獲得經驗值,等級提升後數值會變強,某些怪物到了特定等級(或滿足特殊條件)會進化成更強的型態。'],
+    ['💞 親密度與心情', '餵食物或戰鬥勝利可以提升怪物的親密度,親密度越高,獎勵羈絆效果越強;定期照顧怪物的心情,牠會更願意配合你戰鬥。'],
+    ['🔮 共鳴系統', '隊伍裡外型相近、或屬性相近的怪物湊在一起,會發動「共鳴」,提供全隊攻防甚至特殊效果的加成,詳情可以看「共鳴」分頁。'],
+    ['🗺️ 探索世界', '世界很大,建議善用疾風傳送(T鍵,需要風屬性怪物)快速往返已經去過的怪物中心。'],
+    ['💾 存檔', '按 M 可以隨時手動存檔,最多同時保留 3 組進度,也可以把進度匯出成一串代碼,帶到別的裝置繼續玩。'],
+  ];
+  steps.forEach(([title, desc])=>{
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--panel); border-radius:6px; padding:8px 10px; margin-bottom:8px; border:1px solid #2a2a4a; font-size:12px;';
+    card.innerHTML = `<b>${title}</b><div style="color:#9aa5ce; margin-top:4px; line-height:1.5;">${desc}</div>`;
+    content.appendChild(card);
+  });
+}
+
+function renderHelpMoves(content){
+  const tip = document.createElement('p');
+  tip.style.cssText = 'font-size:11px; color:#9aa5ce; margin-bottom:8px;';
+  tip.textContent = '威力是相對倍率(1.0倍約等同基礎攻擊力),不是實際傷害數字;命中是招式本身的基礎命中率。';
+  content.appendChild(tip);
+
+  Object.entries(MOVE_POOL).forEach(([id, move])=>{
+    const powerText = typeof move.power === 'function' ? '隨機威力'
+      : (!move.power ? '變化技(無傷害)' : `威力${Math.round(move.power*100)}%`);
+    const accText = move.alwaysHit ? '必中' : (move.acc ? `命中${Math.round((move.acc<=1?move.acc*100:move.acc))}%` : '必中');
+    const typeText = move.type && move.type !== 'none' && ELEMENT_META[move.type] ? ELEMENT_META[move.type].name : (move.typeMode==='self' ? '(依自身屬性)' : (move.typeMode==='adaptive' ? '(自動剋制對方)' : (move.typeMode==='random' ? '(隨機屬性)' : '無屬性')));
+
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--panel); border-radius:6px; padding:6px 10px; margin-bottom:5px; border:1px solid #2a2a4a; font-size:12px;';
+    card.innerHTML = `<b>${move.name}</b> <span style="color:#9aa5ce; font-size:10px;">${typeText} ・ ${powerText} ・ ${accText}</span>`;
+    content.appendChild(card);
+  });
+}
+
+function renderHelpResonance(content){
+  const intro = document.createElement('p');
+  intro.style.cssText = 'font-size:11px; color:#9aa5ce; margin-bottom:8px;';
+  intro.textContent = '隊伍裡符合條件的怪物越多,共鳴效果越強(有上限),戰鬥開場會顯示目前發動中的共鳴。';
+  content.appendChild(intro);
+
+  Object.entries(RESONANCE_CATEGORIES).forEach(([id, meta])=>{
+    const effectParts = [];
+    if(meta.atkPerExtra>0) effectParts.push(`每多1隻+${Math.round(meta.atkPerExtra*100)}%攻擊力(上限+${Math.round(meta.maxBonus*100)}%)`);
+    if(meta.defPerExtra>0) effectParts.push(`每多1隻+${Math.round(meta.defPerExtra*100)}%防禦力(上限+${Math.round(meta.maxBonus*100)}%)`);
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--panel); border-radius:6px; padding:8px 10px; margin-bottom:6px; border:1px solid #2a2a4a; font-size:12px;';
+    card.innerHTML = `<b>${meta.icon} ${meta.name}</b><div style="color:#9aa5ce; margin-top:2px;">隊伍中2隻以上外型屬於此類的怪物即可發動。${effectParts.join('、')}</div>`;
+    content.appendChild(card);
+  });
+
+  const extra = [
+    ['❄️ 冰系共鳴', '目前上場的先發怪物是冰屬性時,戰鬥開場有機率讓天氣變成下雪;是水屬性時則有機率變成下雨。'],
+    ['🌈 大四喜', '隊伍中有4種以上不同屬性:經驗值+15%,擊敗訓練家的金幣獎勵+20%。'],
+    ['🌈 六六大順', '隊伍中有6種以上不同屬性:經驗值+30%,擊敗訓練家的金幣獎勵+40%。'],
+    ['🌈 萬花筒', '隊伍中8隻怪物全部不同屬性:經驗值+50%,擊敗訓練家的金幣獎勵+70%。'],
+  ];
+  extra.forEach(([title, desc])=>{
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--panel); border-radius:6px; padding:8px 10px; margin-bottom:6px; border:1px solid #2a2a4a; font-size:12px;';
+    card.innerHTML = `<b>${title}</b><div style="color:#9aa5ce; margin-top:2px;">${desc}</div>`;
+    content.appendChild(card);
+  });
+}
+
+function renderHelpSettings(content){
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--panel); border-radius:6px; padding:10px; margin-bottom:8px; border:1px solid #2a2a4a;';
+  card.innerHTML = `
+    <label style="font-size:12px; color:#9aa5ce; display:block; margin-bottom:6px;">訓練家名稱</label>
+    <input id="playerNameInput" type="text" maxlength="10" value="${GameState.player.name || '訓練家'}"
+      style="width:100%; box-sizing:border-box; padding:8px; border-radius:6px; border:1px solid #2a2a4a; background:#0b0b1a; color:#fff; font-size:14px;">
+  `;
+  content.appendChild(card);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'actBtn';
+  saveBtn.style.cssText = 'width:100%;';
+  saveBtn.textContent = '💾 儲存名稱';
+  saveBtn.onclick = () => {
+    const val = document.getElementById('playerNameInput').value.trim();
+    GameState.player.name = val || '訓練家';
+    toast(`✅ 名稱已更新為「${GameState.player.name}」`);
     SaveManager.save();
-  } else {
-    toast('✨ 此為最終大門, 始源龍靜靜地守護著這裡');
-  }
+  };
+  content.appendChild(saveBtn);
 }

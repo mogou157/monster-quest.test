@@ -25,7 +25,6 @@ const NPCS = [
   { id:'npc_recall', mapId:'map5', x:12, y:5, name:'技能回憶師 志豪', color:'#30c0a0', kind:'moveRecall' },
   { id:'npc_code',  mapId:'map5', x:14, y:5, name:'神秘旅人 阿強', color:'#a030e0', kind:'tradeCode' },
   { id:'npc_storage', mapId:'map5', x:13, y:5, name:'倉庫管理員 阿寶', color:'#5a8fd6', kind:'storage' },
-{ id:'boss_origindra', mapId:'map16', x:16, y:6, name:'神獸 始源龍', color:'#ffd700', kind:'boss', species:'94', lvl:45 },
 { mapId: 'map16', x: 16, y: 2, kind: 'seaGodShrine', name: '黑暗盡頭', sprite: '🌊' // 故意用問號偽裝，暗示看不清楚
 },
 { mapId: 'map10', 
@@ -51,13 +50,15 @@ color: '#2e8b57'
   // ⚙️ 虛空神機 (位於 map30 隱藏迷宮終點)
   { id:'boss_voidgear', 
 mapId:'map30', 
-x: 16, y: 10, // 請改成你地圖中的實際座標
+x: 16, y: 10,
 name:'虛空神機', 
 color:'#E6E6FA', 
 kind:'boss', 
 species:'95', 
 lvl: 50 
   },
+  { id:'npc_storage_9', mapId:'map30', x:1, y:19, name:'倉庫管理員', color:'#5a8fd6', kind:'storage' },
+  { id:'npc_originshrine', mapId:'map31', x:15, y:11, name:'始源祭壇', color:'#ffd700', kind:'originShrine' },
 { id:'npc_trade_1', mapId:'map2', x:15, y:6, name:'Mercader Diego', color:'#e0a030', kind:'tradeMonster', offerSpecies:'65', offerLevel:10, offerColor:'#75592F' }, // 西班牙文 (商人 迪亞哥)
   { id:'npc_trade_2', mapId:'map5', x:10, y:5, name:'Marchand Louis', color:'#e0a030', kind:'tradeMonster', offerSpecies:'16', offerLevel:12, offerColor:'#FEFFF2' }, // 法文 (商人 路易)
 
@@ -139,7 +140,9 @@ const WORLDS = {
   map26:{name:'EXPRESSWAY 10K',tiles:MAP26,trainers:TRAINERS26,neighbors:{up:'map27',down:'map25'}},
   map27:{name:'EXPRESSWAY 20K',tiles:MAP27,trainers:TRAINERS27,neighbors:{up:'map28',down:'map26'}},
   map28:{name:'EXPRESSWAY 30K',tiles:MAP28,trainers:TRAINERS28,neighbors:{up:'map29',down:'map27'}},
-  map29:{name:'EXPRESSWAY 40K',tiles:MAP29,trainers:TRAINERS29,neighbors:{up:'map29',down:'map28'}},
+  map29:{name:'EXPRESSWAY 40K',tiles:MAP29,trainers:TRAINERS29,neighbors:{up:'map30',down:'map28'}},
+  map30:{name:'寧靜島',tiles:MAP30,trainers:TRAINERS30,neighbors:{down:'map29'}},
+  map31:{name:'天蜀之地',tiles:MAP31,trainers:TRAINERS31},
 };
 let MAP = WORLDS[GameState.player.mapId].tiles;
 let TRAINERS = WORLDS[GameState.player.mapId].trainers;
@@ -246,6 +249,8 @@ const MAP_THEMES = {
   map18: { 0:'#d2b48c', 1:'#bc9a68', 2:'#7a623e' },
   map7:{ 0:'#5a6978', 1:'#3b4958', 2:'#B59C18' },
   map8:{ 0:'#5a6978', 1:'#3b4958', 2:'#E8C91E' },
+  map30: { 0:'#1a1a2e', 1:'#16213e', 2:'#0f1530' },
+  map31: { 0:'#1a1a2e', 1:'#16213e', 2:'#0f1530' },
   map21: { 0:'#3d3846', 1:'#2a2135', 2:'#1a1524' },
   map22: { 0:'#3d3846', 1:'#2a2135', 2:'#1a1524' },
   map23:{0:'#91C492'},
@@ -605,11 +610,11 @@ let inBattle=false, started=false, overlayOpen=null; // 'status' | 'dex' | null
 let typeChartOpen=false;
 
 let toastTimer=null;
-function toast(msg){
+function toast(msg, duration=2200){
   const el=document.getElementById('toast');
   el.textContent=msg; el.style.opacity='1';
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=> el.style.opacity='0', 2200);
+  toastTimer=setTimeout(()=> el.style.opacity='0', duration);
 }
 
 // ---------- 鍵盤焦點導覽(WASD 選取 + F 確認) ----------
@@ -740,6 +745,10 @@ document.addEventListener('keydown', (e)=>{
   if(k==='t'||k==='T'){
     useTeleport(); e.preventDefault(); return;
   }
+  if(k==='v'||k==='V'){
+    if(inBattle) return;
+    openHelpScreen(); e.preventDefault(); return;
+  }
   if(k==='m'||k==='M'){
     if(inBattle){ toast('戰鬥中無法手動存檔'); e.preventDefault(); return; }
     toast('💾 手動存檔中…');
@@ -786,19 +795,19 @@ document.addEventListener('keydown', (e)=>{
 const MAP_EVENTS = {
     // 雷暴聖殿 (主線關卡)
     map7: {
-        thunderGate: [[14, 4], [15, 4], [2, 8], [3, 8], [13, 15], [14, 15]]
+        thunderGate: [[1, 22], [20, 7], [6, 14], [5, 14]]
     },
     // 充能閘門 B
     map8: {
-        thunderGate: [[17, 22], [18, 22], [8, 2], [8, 3], [14, 4]]
+        thunderGate: [[2, 3], [4, 31], [10, 31], [11, 18], [18, 22], [15, 11], [8, 2], [8, 3]]
     },
     // 充能閘門 C
     map11: {
-        thunderGate: [[18, 11], [18, 13], [17, 12], [19, 12]] 
+        thunderGate: [[13, 2]]
     },
     // 充能閘門 D
     map17: {
-        thunderGate: [[2, 17], [2, 19], [1, 18], [3, 18]]
+        thunderGate: [[16, 21]]
     }
 };
 // 🏃 控制跑步狀態的全域變數
@@ -925,7 +934,7 @@ const MapManager = {
                 26: ['map4', 6, 1], 27: ['map7', 26, 1], 28: ['map8', 26, 20], 29: ['map7', 6, 20],
                 30: ['map10', 6, 19], 31: ['map9', 6, 1], 32: ['map11', 1, 6], 33: ['map4', 32, 6],
                 34: ['map11', 16, 1], 35: ['map9', 16, 20], 36: ['map12', 18, 1], 37: ['map11', 18, 20],
-                38: ['map20', 6, 20], 39: ['map5', 8, 1], 40: ['map8', 1, 4], 55: ['map18', 32, 4],
+                38: ['map20', 6, 20], 39: ['map5', 8, 1], 40: ['map8', 1, 4], 70: ['map18', 32, 4],
                 45: ['map18', 1, ny], 46: ['map17', 32, ny], 47: ['map19', nx, 1], 48: ['map17', nx, 20],
                 49: ['map20', nx, 1], 50: ['map18', nx, 20], 51: ['map20', 1, ny], 52: ['map19', 32, ny],
                 53: ['map20', 1, ny], 54: ['map19', 32, ny], 55:['map23',1,5],56:['map22',32,10],57:['map21',32,5],
@@ -951,7 +960,7 @@ const MapManager = {
             } else if(tile===7){
                 openShop();
             } else if(tile===8){
-                revealLegendary();
+                switchMap('map31', 2, 20);
 } else if (tile === 11) {
                 // ⚡ 雷屬性充能閘門 (能走到這裡代表隊伍已經有雷屬性怪物,前面的地形判定已經確認過了)
                 const mapId = GameState.player.mapId;
@@ -979,7 +988,7 @@ const MapManager = {
                             msg += '\n\n並在機關深處發現了【充能核心D】！';
                         }
 
-                        alert(msg);
+                        toast(msg, 4000);
                         SaveManager.save();
                         drawMap(); // 確保畫面立刻更新，障礙物消失！
                     }
@@ -1039,9 +1048,18 @@ const MapManager = {
         if(bestDist===0){ toast('已經在怪物中心了'); return; }
         
         player.x=nearest.x; player.y=nearest.y;
+
+        // 🌟 疾風傳送直接抵達怪物中心,補上跟走路過去一樣的全隊治療效果
+        party.forEach(m=> {
+            m.hp = m.maxHp;
+            m.status = null;
+        });
+        updateHud();
+        SaveManager.save();
+
         drawMap();
         document.getElementById('hudPos').textContent = `位置: (${player.x}, ${player.y}) ・ ${WORLDS[GameState.player.mapId].name}`;
-        toast(`🌀 ${FIELD_SKILL_NAME.wind}：瞬間移動到了最近的怪物中心！`);
+        toast(`🌀 ${FIELD_SKILL_NAME.wind}：瞬間移動到了最近的怪物中心！✚ 全隊HP已恢復!`);
     }
   };
 // ==========================================
@@ -1104,10 +1122,12 @@ document.getElementById('quickC').onclick = ()=> { if(!inBattle) toggleOverlay('
 document.getElementById('quickQ').onclick = ()=> { if(!inBattle) toggleOverlay('quest'); };
 document.getElementById('quickN').onclick = ()=> toggleTypeChart();
 document.getElementById('quickG').onclick = ()=> toggleRun();
+document.getElementById('quickV').onclick = ()=> openHelpScreen();
 
 // 假設你原本鍵盤事件區塊 (keydown) 是長這樣，記得也要把它轉接給 MapManager：
 function handleDirectionInput(dx, dy) { MapManager.handleDirectionInput(dx, dy); }
 function handleConfirmInput() { MapManager.handleConfirmInput(); }
+function useTeleport() { MapManager.useTeleport(); }
 function toggleOverlay(name){
   if(isSaving) return;
   if(overlayOpen===name){ closeOverlays(); return; }
@@ -1130,6 +1150,7 @@ function closeOverlays(){
   document.getElementById('storageOverlay').style.display='none';
   document.getElementById('minigameOverlay').style.display='none';
   document.getElementById('fusionOverlay').style.display='none';
+  document.getElementById('helpOverlay').style.display='none';
   document.getElementById('exportImportOverlay').style.display='none';
 document.getElementById('worldMapOverlay').style.display = 'none';
   overlayOpen=null;
@@ -1170,6 +1191,7 @@ function openNPC(npc){
       else if (npc.kind === 'iceGodShrine') handleIceGodShrine(npc);
       else if (npc.kind === 'woodGodShrine') handleWoodGodShrine(npc); // 🌟 新增木神聖壇
   }
+  if(npc.kind==='originShrine') handleOriginShrine(npc); // 👑 終極機關：始源祭壇
 }
 // ==========================================
 // 🌊 神獸機關：海神聖壇 (位於 map16)
@@ -1184,7 +1206,7 @@ function handleSeaGodShrine(npc) {
     // 2. 檢查天氣是否為雨天 (如果不是，聖壇其實是隱形的，但以防萬一加個保護)
     const isRaining = WeatherManager.getOverworldWeather(GameState.player.mapId) === 'rain';
     if (!isRaining) {
-        alert('🌊 這裡是一片深水區...水面下似乎隱約有個巨大的石基。');
+        toast('🌊 這裡是一片深水區...水面下似乎隱約有個巨大的石基。', 3500);
         return;
     }
 
@@ -1195,7 +1217,7 @@ function handleSeaGodShrine(npc) {
 
     if (qualifiedWaterMon) {
         const spName = MonsterUtil.species(qualifiedWaterMon).name;
-        alert(`🌧️ 狂風驟雨中，${spName} 釋放出了極其強大的水之共鳴！\n\n【海神聖壇】的大門敞開，深淵的守護者甦醒了！`);
+        toast(`🌧️ 狂風驟雨中，${spName} 釋放出了極其強大的水之共鳴！\n【海神聖壇】的大門敞開，深淵的守護者甦醒了！`, 4500);
         
         // 🎯 觸發海神 Boss 戰
         let seaGod = makeMonster('92', 40); // 假設圖鑑 ID 為 92
@@ -1210,7 +1232,7 @@ function handleSeaGodShrine(npc) {
             winMsg: '深淵的怒濤平息了...海神認可了你的實力！'
         });
     } else {
-        alert('🌧️ 大雨滂沱，海神聖壇浮出了水面！\n\n但聖壇毫無反應...似乎需要一隻「身經百戰 (Lv.30+)」或「與你心靈相通 (親密度200滿值)」的【水屬性】怪獸來引發共鳴。');
+        toast('🌧️ 大雨滂沱，海神聖壇浮出了水面！但聖壇毫無反應...似乎需要一隻「身經百戰(Lv.30+)」或「與你心靈相通(親密度200滿值)」的【水屬性】怪獸來引發共鳴。', 5000);
     }
 }
 // ==========================================
@@ -1235,22 +1257,22 @@ function handleFireGodShrine(npc) {
     const hasAllFires = GameState.inventory.fa && GameState.inventory.fb && GameState.inventory.fc && GameState.inventory.fd;
 
     if (!clearedTrainers) {
-        alert('🔥 聖壇散發著微弱的熱氣...\n\n似乎需要先擊敗「中央廣場(map9)」與「熾熱山谷(map10)」的所有訓練家，向聖壇證明你的武勇。');
+        toast('🔥 聖壇散發著微弱的熱氣...似乎需要先擊敗「中央廣場(map9)」與「熾熱山谷(map10)」的所有訓練家，向聖壇證明你的武勇。', 4000);
         return;
     }
 
     if (!hasAllFires) {
-        alert('🔥 聖壇四周有四個空蕩蕩的火盆...\n\n需要透過完成任務，找齊四把「不滅聖火 (A, B, C, D)」才能點燃它們。');
+        toast('🔥 聖壇四周有四個空蕩蕩的火盆...需要透過完成任務，找齊四把「不滅聖火(A,B,C,D)」才能點燃它們。', 4000);
         return;
     }
 
     if (!qualifiedFireMon) {
-        alert('🔥 四把不滅聖火已經就位，但火焰無法融合...\n\n你需要一隻與你「關係良好 (友好度60+)」的【火屬性】怪獸來引導這股龐大的能量！');
+        toast('🔥 四把不滅聖火已經就位，但火焰無法融合...你需要一隻與你「關係良好(友好度60+)」的【火屬性】怪獸來引導這股龐大的能量！', 4500);
         return;
     }
     // 所有條件達成！觸發戰鬥
     const spName = MonsterUtil.species(qualifiedFireMon).name;
-    alert(`🔥 ${spName} 將四把不滅聖火的能量引導至聖壇中央！\n\n岩漿劇烈翻騰，日珥神龍從熾熱的深淵中甦醒了！`);
+    toast(`🔥 ${spName} 將四把不滅聖火的能量引導至聖壇中央！岩漿劇烈翻騰，日珥神龍從熾熱的深淵中甦醒了！`, 4500);
     
     // 🎯 觸發火神 Boss 戰 (假設日珥神龍圖鑑 ID 為 '90')
     let fireGod = makeMonster('90', 35); 
@@ -1277,7 +1299,7 @@ function handleThunderGodShrine(npc) {
 
     const isRaining = WeatherManager.getOverworldWeather(GameState.player.mapId) === 'rain';
     if (!isRaining) {
-        alert('⚡ 這裡只是一片空地，但空氣中殘留著微弱的靜電...');
+        toast('⚡ 這裡只是一片空地，但空氣中殘留著微弱的靜電...', 3000);
         return;
     }
 
@@ -1285,12 +1307,12 @@ function handleThunderGodShrine(npc) {
     const hasAllCores = GameState.inventory.ta && GameState.inventory.tb && GameState.inventory.tc && GameState.inventory.td;
 
     if (!hasAllCores) {
-        alert('⚡ 雷雨交加中，隱藏的【雷暴聖殿】顯現了！\n\n但聖殿大門緊閉...上面有四個凹槽，似乎需要啟動世界各地的「充能閘門」並收集四個【充能核心 (A, B, C, D)】。');
+        toast('⚡ 雷雨交加中，隱藏的【雷暴聖殿】顯現了！但聖殿大門緊閉...上面有四個凹槽，似乎需要啟動世界各地的「充能閘門」並收集四個【充能核心(A,B,C,D)】。', 4500);
         return;
     }
 
     // 所有條件達成！觸發戰鬥
-    alert(`⚡ 你將四個充能核心嵌入聖殿大門！\n\n轟隆！一道巨大的落雷劈下，天雷聖鳥從雷雲中降臨了！`);
+    toast(`⚡ 你將四個充能核心嵌入聖殿大門！轟隆！一道巨大的落雷劈下，天雷聖鳥從雷雲中降臨了！`, 4500);
     
     // 🎯 觸發雷神 Boss 戰 (假設天雷聖鳥圖鑑 ID 為 '94')
     let thunderGod = makeMonster('93', 40); 
@@ -1355,10 +1377,10 @@ function handleIceGodShrine(npc) {
     if (method1_caughtAllIce || method2_weatherAndBond) {
         
         if (method1_caughtAllIce) {
-            alert(`❄️ 你對冰系怪獸透徹的了解，引發了強大的屬性共鳴！\n\n伴隨著一聲震天動地的咆哮，萬年玄冰碎裂，冰河猛瑪甦醒了！`);
+            toast(`❄️ 你對冰系怪獸透徹的了解，引發了強大的屬性共鳴！萬年玄冰碎裂，冰河猛瑪甦醒了！`, 4500);
         } else {
             const spName = MonsterUtil.species(highBondMon).name;
-            alert(`❄️ 漫天飛雪中，${spName} 身上散發出的強大羈絆融化了萬年玄冰！\n\n伴隨著一聲震天動地的咆哮，冰河猛瑪甦醒了！`);
+            toast(`❄️ 漫天飛雪中，${spName} 身上散發出的強大羈絆融化了萬年玄冰！冰河猛瑪甦醒了！`, 4500);
         }
         
         // 🎯 觸發冰神 Boss 戰 (假設冰河猛瑪圖鑑 ID 為 '96')
@@ -1376,7 +1398,7 @@ function handleIceGodShrine(npc) {
 
     } else {
         // 條件皆未滿足時的精準提示
-        alert('❄️ 巨大的萬年玄冰中封印著某種龐然大物...\n\n要喚醒牠似乎有兩種途徑：\n1. 成為冰系大師 (捕捉過世上所有的冰系怪獸)。\n2. 尋求天時地利 (在「下雪」的天氣裡，帶著「友好度大於120」的夥伴，且圖鑑見過所有冰系怪獸)。');
+        toast('❄️ 巨大的萬年玄冰中封印著某種龐然大物...要喚醒牠有兩種途徑:①成為冰系大師(捕捉過所有冰系怪獸) ②天時地利(下雪天+友好度120+的夥伴+見過所有冰系怪獸)', 5500);
     }
 }
 // ==========================================
@@ -1397,13 +1419,13 @@ function handleWoodGodShrine(npc) {
     // 🌟 解鎖路線 1：直接滿足嚴苛條件
     if (hasFlash && highBondWood) {
         const spName = MonsterUtil.species(highBondWood).name;
-        alert(`🌳 ${spName} 將溫暖的羈絆之力注入聖壇，同時閃耀出奪目的光芒！\n\n枯木逢春，巨大的藤蔓拔地而起，創世巨樹降臨了！`);
+        toast(`🌳 ${spName} 將溫暖的羈絆之力注入聖壇，同時閃耀出奪目的光芒！創世巨樹降臨了！`, 4500);
         
         triggerWoodGodBattle();
     } 
     // 🌟 解鎖路線 2：進入戰鬥，等待彩虹奇蹟
     else {
-        alert('🍂 枯萎的聖壇沒有反應...\n\n(突然間，周圍的樹叢傳來了沙沙聲，似乎有野生怪物被驚動了！)');
+        toast('🍂 枯萎的聖壇沒有反應...(突然間，周圍的樹叢傳來了沙沙聲，似乎有野生怪物被驚動了！)', 3500);
         
         // 標記這是一場「聖壇驚動的野生戰鬥」，等待戰後結算天氣
         GameState.world.woodGodTrial = true; 
@@ -1425,6 +1447,42 @@ function triggerWoodGodBattle() {
         winMsg: '無盡的生命力溫和了下來...巨樹認可了你的實力！'
     });
 }
+
+// ==========================================
+// 👑 終極機關：始源祭壇 (位於 map31)
+// ==========================================
+function handleOriginShrine(npc) {
+    if (trainersDefeated.has('boss_origindra')) {
+        toast('👑 始源的王座已空，傳說的力量與你同在。');
+        return;
+    }
+
+    // 檢查倉庫是否有這六隻神獸 (以種族 ID 為準)
+    const requiredLegendaries = ['90', '91', '92', '93', '95', '96'];
+    const legendsInStorage = storageBox.filter(m => requiredLegendaries.includes(m.speciesId));
+
+    // 排除重複的 ID，確認是否剛好集齊 6 種
+    const uniqueLegendsInStorage = new Set(legendsInStorage.map(m => m.speciesId));
+
+    if (uniqueLegendsInStorage.size === 6) {
+        toast('✨ 祭壇爆發出七彩的光芒！倉庫中的六隻神獸與你隊伍中的七大元素產生了強烈的共鳴...空間被撕裂，【始源龍】從虛空中現身了！', 4500);
+
+        let origindra = makeMonster('94', 70, generateIV()); // 超高滿等 70 級
+        origindra.maxHp = Math.round(origindra.maxHp * 2.0); // 終極 Boss 血量翻倍
+        origindra.hp = origindra.maxHp;
+
+        startBossBattle({
+            id: 'boss_origindra',
+            name: '始源龍',
+            sprite: '👑',
+            team: [origindra],
+            winMsg: '萬物歸一...始源龍認可了你作為最強大師的資格！'
+        });
+    } else {
+        toast(`🏛️ 始源祭壇的碑文:「當七彩的元素為你鋪路，請將六根創世之柱安放於靈魂的深處(倉庫)。」(目前倉庫中的神獸數量:${uniqueLegendsInStorage.size}/6)`, 5000);
+    }
+}
+
 // ---------- 隊伍與圖鑑資料 ----------
 const PARTY_LIMIT = 8; // 隊伍上限,超過的怪物要放進倉庫
 

@@ -72,7 +72,7 @@ function calculatePartyResonance(){
     const atkAdd = Math.min(meta.atkPerExtra * extra, meta.atkPerExtra>0 ? meta.maxBonus : 0);
     const defAdd = Math.min(meta.defPerExtra * extra, meta.defPerExtra>0 ? meta.maxBonus : 0);
     atkBonus += atkAdd; defBonus += defAdd;
-    if(atkAdd>0 || defAdd>0) active.push({ ...meta, count, atkAdd, defAdd });
+    if(atkAdd>0 || defAdd>0) active.push({ ...meta, catId:cat, count, atkAdd, defAdd });
   });
 
   return { atkMult: 1+atkBonus, defMult: 1+defBonus, active };
@@ -81,9 +81,41 @@ function calculatePartyResonance(){
 // 產生一句共鳴狀態的說明文字(用在戰鬥開始的訊息裡)
 function describeResonance(){
   const r = calculatePartyResonance();
-  if(r.active.length === 0) return '';
   const parts = r.active.map(a => `${a.icon}${a.name}x${a.count}`);
+
+  const diversity = calculateTypeDiversityBonus();
+  if(diversity) parts.push(`🌈${diversity.name}(${diversity.typeCount}屬性)`);
+
+  if(parts.length === 0) return '';
   return `\n✨ 隊伍共鳴發動:${parts.join('、')}!`;
+}
+
+// 🌈 屬性多樣性共鳴:隊伍裡不同「屬性」種類越多,經驗值/從訓練家獲得的金幣加成越高
+// 大四喜(4種)→六六大順(6種)→萬花筒(8種,滿隊全部不同屬性)
+function calculateTypeDiversityBonus(){
+  const types = new Set(party.map(m => MonsterUtil.species(m).type));
+  const n = types.size;
+  if(n >= 8) return { name:'萬花筒', typeCount:n, expMult:1.5,  coinMult:1.7 };
+  if(n >= 6) return { name:'六六大順', typeCount:n, expMult:1.3,  coinMult:1.4 };
+  if(n >= 4) return { name:'大四喜', typeCount:n, expMult:1.15, coinMult:1.2 };
+  return null;
+}
+
+// ❄️ 冰系共鳴:上場的先發怪物如果是冰屬性,戰鬥開場有機率讓天氣變成下雪;
+// 如果是水屬性,則有機率變成下雨。其他屬性不會觸發(這兩種共用同一個「冰系共鳴」判定,不是各自獨立的共鳴)。
+function checkIceResonanceWeather(){
+  const active = party[GameState.party.activeIndex];
+  if(!active) return false;
+  const activeType = MonsterUtil.species(active).type;
+  if(activeType === 'ice' && Math.random() < 0.3){
+    currentWeather = WEATHERS.find(w => w.id === 'snow');
+    return true;
+  }
+  if(activeType === 'water' && Math.random() < 0.3){
+    currentWeather = WEATHERS.find(w => w.id === 'rain');
+    return true;
+  }
+  return false;
 }
 
 // ==========================================
@@ -130,7 +162,10 @@ function getBondRank(bond) {
     if (bond <= 60) return '🤍 陌生';
     if (bond <= 120) return '💛 友好';
     if (bond <= 160) return '💖 要好';
-    return '👑 拍檔';
+    if (bond < 200) return '👑 拍檔';
+    if (bond < 350) return '💫 心靈相通';
+    if (bond < 400) return '🌟 生死與共';
+    return '✨ 命運與共';
 }
 function makeMonster(speciesId, level, iv){
     let sp = SPECIES.find(s => s.id === String(speciesId));
@@ -160,6 +195,22 @@ function updateHud(){
   document.getElementById('hudParty').textContent = `隊伍: ${party.length}/${PARTY_LIMIT}`;
   const active = party[GameState.party.activeIndex];
   document.getElementById('hudLevel').textContent = active ? `${MonsterUtil.species(active).name} Lv.${active.level}` : '-';
+  checkChapterCompletion();
+}
+
+// 🌟 章節完成通知:每次更新HUD時檢查,一旦某章節「剛好」全部完成(且之前沒通知過),就跳出提示
+function checkChapterCompletion(){
+  if (typeof QUESTS === 'undefined') return;
+  GameState.world.notifiedChapters = GameState.world.notifiedChapters || [];
+  const chapters = [...new Set(QUESTS.map(q => q.chapter))].filter(c => c < 99); // 99是隱藏神獸試煉,不算在章節進度內
+  chapters.forEach(ch => {
+    const chapterQuests = QUESTS.filter(q => q.chapter === ch);
+    const allDone = chapterQuests.length > 0 && chapterQuests.every(q => q.check());
+    if (allDone && !GameState.world.notifiedChapters.includes(ch)) {
+      GameState.world.notifiedChapters.push(ch);
+      toast(`🎉 完成第${ch}章全部任務!`, 4000);
+    }
+  });
 }
 
 // ---------- 狀態畫面 ----------
@@ -183,13 +234,23 @@ function renderStatusScreen(){
     const bondVal = m.bond || 0;
     const bondRank = getBondRank(bondVal);
     const currentMood = MOOD_META[m.mood] || MOOD_META['normal'];
-    
+    const hpPct = Math.max(0, Math.round((m.hp / m.maxHp) * 100));
+
+    // 🔮 共鳴圖案:這隻怪物的外型如果屬於目前發動中的共鳴類別,顯示對應圖示
+    let resonanceIconHtml = '';
+    if (typeof SHAPE_CATEGORIES !== 'undefined' && typeof calculatePartyResonance !== 'undefined') {
+        const myCat = SHAPE_CATEGORIES[sp.shape];
+        const active = calculatePartyResonance().active.find(a => a.catId === myCat);
+        if (active) resonanceIconHtml = ` <span class="typeTag" style="background:#2c2c54;color:#fff;" title="${active.name}">${active.icon}共鳴中</span>`;
+    }
+
     info.innerHTML = `<b>${i===0?'▶ ':''}${sp.name}</b> Lv.${m.level}
-      <span class="typeTag" style="background:${ELEMENT_META[sp.type].color};color:#111;">${ELEMENT_META[sp.type].name}</span>${m.altColor?' <span class="typeTag" style="background:#fff8c9;color:#7a5c00;">✨異色</span>':''}<br>
-      HP ${m.hp}/${m.maxHp} ・ ATK ${m.atk} ・ DEF ${m.def} ・ EXP ${m.exp}/${needed}<br>
-      羈絆: ${bondRank} (${bondVal}/200) ・ 心情: <span style="color:${currentMood.color}; font-weight:bold;">${currentMood.name}</span><br>
+      <span class="typeTag" style="background:${ELEMENT_META[sp.type].color};color:#111;">${ELEMENT_META[sp.type].name}</span>${m.altColor?' <span class="typeTag" style="background:#fff8c9;color:#7a5c00;">✨異色</span>':''}${resonanceIconHtml}<br>
+      <div class="hp-bar-outer" style="margin:4px 0;"><div class="hp-bar-inner" style="width:${hpPct}%;"></div></div>
+      HP ${m.hp}/${m.maxHp}<br>
+      ATK ${m.atk} ・ DEF ${m.def} ・ EXP ${m.exp}/${needed}<br>
+      羈絆: ${bondRank} (${bondVal}/400) ・ 心情: <span style="color:${currentMood.color}; font-weight:bold;">${currentMood.name}</span> ・ 裝備:${heldDef ? heldDef.name : '無'}<br>
       特性:${PASSIVES[sp.passive].name} — ${PASSIVES[sp.passive].desc}<br>
-      裝備:${heldDef ? heldDef.name : '無'}<br>
       技能:${moveNames}`;
           card.appendChild(info);
 
@@ -318,7 +379,7 @@ function renderDexScreen(){
         else if (sp.type === 'earth') location = '地下洞窟 / 山路';
         else if (sp.type === 'dark') location = '漆黑地帶 / 隱藏小徑';
         
-        locHtml = `<div style="color:var(--accent2); font-size:9px; margin-top:4px;">📍 棲息: ${location}</div>`;
+        locHtml = `<div style="color:#FFFECC; font-size:9px; margin-top:4px;">📍 棲息: ${location}</div>`;
     }
 
 const info = document.createElement('div');
@@ -369,6 +430,10 @@ const starterRow = document.getElementById('starterRow');
         drawMap();
         started = true;
         toast(`冒險開始！${sp.name} 加入了隊伍！`);
+
+        // 5. 🌟 新玩家的第一次冒險,自動跳出新手教學
+        currentHelpTab = 'tutorial';
+        openHelpScreen();
     };
       starterRow.appendChild(card);
   drawMonster(c.getContext('2d'), sp, 56, 56);
@@ -521,6 +586,76 @@ function updateBattleBackground(mapId, weatherId) {
 
     overlay.style.background = bg;
 }
+// ==========================================
+// 🌍 野生怪物分布系統 (依生態系分區,確保每張地圖至少2種屬性、
+// 每隻怪物至少分布在2張地圖以上——生態系本身就橫跨多張地圖)
+// ==========================================
+const STARTER_SPECIES = ['embit','aquiv','sprigl']; // 這三隻只能靠選擇初始怪物取得,野外草叢不會遇到
+
+const BIOMES = {
+  // 🌳 森林 (拆成兩區,對應不同地圖)
+  forestA:  ['22','48','51','86','16','44','62','60'],
+  forestB:  ['23','24','49','50','52','53','54','11','55'],
+  // ⛰️ 洞窟與遺跡
+  cave:     ['58','67','74','56','09','88','75','40','19','36','37'],
+  // ❄️ 雪山與極地
+  snow:     ['61','76','77','78','79','15','43','68','89','72'],
+  // 🌊 海洋與沙灘
+  sea:      ['12','13','14','17','18','20','21','06','87'],
+  // 🌋 火山與熾熱地帶
+  volcano:  ['69','66','07','08','10','35','70','65','84','120'],
+  // ⚡ 城市與機械建築 (拆成兩區,對應不同地圖)
+  cityA:    ['59','01','02','30','31','63','42'],
+  cityB:    ['03','04','05','27','32','33','34','57'],
+  // 🌫️ 迷霧與高地 (拆成兩區,對應不同地圖)
+  highlandA:['64','73','46','47','26','28','71'],
+  highlandB:['38','39','41','25','29','45','85'],
+};
+
+// 將所有地圖對應到上面的生態系(同一生態系內的怪物,自然就會出現在好幾張地圖裡)
+const MAP_WILD_POOLS = {
+  map1: BIOMES.forestA, map2: BIOMES.forestA,
+  map23: BIOMES.forestB, map24: BIOMES.forestB,
+  map3: BIOMES.cave, map4: BIOMES.cave, map16: BIOMES.cave, map22: BIOMES.cave,
+  map6_1: BIOMES.snow, map6_2: BIOMES.snow, map15: BIOMES.snow,
+  map12: BIOMES.sea, map13: BIOMES.sea, map14: BIOMES.sea,
+  map10: BIOMES.volcano, map9: BIOMES.volcano,
+  map5: BIOMES.cityA, map7: BIOMES.cityA,
+  map8: BIOMES.cityB, map11: BIOMES.cityB,
+  map17: BIOMES.highlandA, map18: BIOMES.highlandA,
+  map19: BIOMES.highlandB, map20: BIOMES.highlandB, map21: BIOMES.highlandB,
+};
+
+// 取得目前地圖對應的野怪池;沒有特別設定生態系的地圖(例如新加的隱藏地圖),
+// 就退回原本「全部基礎型怪物」的隨機池,不會讓野生遭遇整個壞掉。
+function currentWildPool(){
+  const poolIds = MAP_WILD_POOLS[GameState.player.mapId];
+  if (!poolIds) {
+    return SPECIES.filter(s => !s.legendary && !s.evolved && !STARTER_SPECIES.includes(s.id));
+  }
+  return poolIds.map(id => SPECIES.find(s => s.id === id)).filter(s => s);
+}
+
+// 🗺️ 生態系顯示名稱(給世界地圖標註用)
+const BIOME_DISPLAY = {
+  forestA:  { icon:'🌳', name:'森林(西)' },
+  forestB:  { icon:'🌳', name:'森林(東)' },
+  cave:     { icon:'⛰️', name:'洞窟' },
+  snow:     { icon:'❄️', name:'雪山' },
+  sea:      { icon:'🌊', name:'海洋' },
+  volcano:  { icon:'🌋', name:'火山' },
+  cityA:    { icon:'⚡', name:'城市(西)' },
+  cityB:    { icon:'⚡', name:'城市(東)' },
+  highlandA:{ icon:'🌫️', name:'高地(西)' },
+  highlandB:{ icon:'🌫️', name:'高地(東)' },
+};
+// 依地圖ID反查所屬生態系(用陣列參照比對哪個BIOMES類別跟這張地圖的野怪池是同一份)
+function getMapBiome(mapId){
+  const pool = MAP_WILD_POOLS[mapId];
+  if (!pool) return null;
+  const catId = Object.keys(BIOMES).find(k => BIOMES[k] === pool);
+  return catId ? BIOME_DISPLAY[catId] : null;
+}
 // ---------- 野生戰鬥觸發器 (固定地圖等級 + 動態安全網) ----------
 function startWildBattle() {
     if (typeof debugNoEncounters !== 'undefined' && debugNoEncounters) return;
@@ -548,8 +683,8 @@ function startWildBattle() {
         lv = Math.max(2, Math.round(pLevel + (Math.random() * 4 - 4)));
     }
 
-    // 🌟 3. 決定出現的野怪 (排除神獸與進化型)
-    const wildPool = SPECIES.filter(s => !s.legendary && !s.evolved);
+    // 🌟 3. 決定出現的野怪 (依照目前地圖所屬的生態系來抽取,而不是整個圖鑑亂抽)
+    const wildPool = currentWildPool();
     const sp = wildPool[Math.floor(Math.random() * wildPool.length)];
 
     // 🌟 4. 產生野怪並進入戰鬥
@@ -575,7 +710,7 @@ function startWildBattle() {
 
     inBattle = true;
     GameState.party.activeIndex = party.findIndex(m => m.hp > 0);
-    
+    checkIceResonanceWeather();
     document.getElementById('logBox').innerHTML = `遇到了野生的 ${sp.name}!${describeResonance()}`;
     renderBattle();
     showBattleControls();
@@ -602,6 +737,7 @@ trainerTeamQueue = trainer.team.map(tMon => {
   seenDex.add(wild.speciesId);
   document.getElementById('btnCatch').disabled = true;
   document.getElementById('btnRun').disabled = true;
+  checkIceResonanceWeather();
   enterBattleUI(`${trainer.name}:「來戰鬥吧!」派出了 ${MonsterUtil.species(wild).name}(Lv.${wild.level})!${describeResonance()}`);
   party[GameState.party.activeIndex].hasDealtFirstDamage = false;
   wild.hasDealtFirstDamage = false;
@@ -634,6 +770,7 @@ function startBossBattle(npc){
   document.getElementById('btnCatch').disabled = true;
   document.getElementById('btnRun').disabled = true;
   
+  checkIceResonanceWeather();
   enterBattleUI(`強大的 ${MonsterUtil.species(wild).name} 發出了震耳欲聾的咆哮，準備進行戰鬥！${describeResonance()}`);
 }
 
@@ -713,7 +850,17 @@ function showBattleControls() {
             }
             
             // 🎯 加入命中率判斷 (處理 100% 或 alwaysHit 的情況)
-            let accDisplay = (!defAcc || defAcc >= 100 || move.alwaysHit) ? '必中' : `命中${defAcc}%`;
+            // 🌟 修正:defAcc 是 0~1 的小數(例如0.7代表70%),原本直接顯示成「命中0.7%」,現在正確換算成百分比
+            const isFirstTurnGuaranteed = move.firstTurnAcc && !p.hasDealtFirstDamage;
+            let accDisplay;
+            if (move.alwaysHit || isFirstTurnGuaranteed) {
+                accDisplay = isFirstTurnGuaranteed ? '首回合必中' : '必中';
+            } else if (!defAcc) {
+                accDisplay = '必中';
+            } else {
+                const accPercent = defAcc <= 1 ? Math.round(defAcc * 100) : Math.round(defAcc);
+                accDisplay = accPercent >= 100 ? '必中' : `命中${accPercent}%`;
+            }
             let btnText = `${move.name} (${pwrDisplay} / ${accDisplay})`;
             
             // PP 次數系統
@@ -759,6 +906,39 @@ function showBattleControls() {
     // 🔄 2. 換人按鈕 (連接到全新的圖鑑化介面)
     document.getElementById('btnParty').onclick = () => {
         if (typeof openBattleSwapUI === 'function') openBattleSwapUI(false);
+    };
+
+    // 🔮 3. 捕捉按鈕
+    document.getElementById('btnCatch').onclick = () => {
+        if (isTrainer) { log('訓練家的怪物不能被捕捉!'); return; }
+        hideBattleControls();
+
+        const target = (typeof BattleManager !== 'undefined' && BattleManager.state.enemy) ? BattleManager.state.enemy : wild;
+        let catchChance = Math.min(0.95, 0.15 + (1 - target.hp / target.maxHp) * 0.75);
+        if (MonsterUtil.species(target).passive === 'friendly') catchChance = Math.min(0.95, catchChance + 0.2);
+        const charmLv = GameState.inventory.catchCharm || 0;
+        if (charmLv > 0) catchChance = Math.min(0.95, catchChance + (charmLv * 0.10));
+
+        log(`你丟出捕獲珠...(成功率約 ${Math.round(catchChance * 100)}%)`);
+        const success = Math.random() < catchChance;
+
+        setTimeout(() => {
+            if (success) {
+                const dest = addToPartyOrStorage({ ...target });
+                dex.add(target.speciesId);
+                seenDex.add(target.speciesId);
+                if (typeof ensureDailyFresh === 'function') ensureDailyFresh();
+                if (typeof dailyProgress !== 'undefined') dailyProgress.catches++;
+                log(dest === 'party'
+                    ? `成功捕捉了 ${MonsterUtil.species(target).name}!牠加入了你的隊伍。`
+                    : `成功捕捉了 ${MonsterUtil.species(target).name}!隊伍已滿(${PARTY_LIMIT}隻),自動送去倉庫保管了。`);
+                updateHud();
+                setTimeout(() => endBattle(null), 1600);
+            } else {
+                log('野生怪物掙脫了!');
+                setTimeout(() => { if (typeof enemyTurn === 'function') enemyTurn(); }, 900);
+            }
+        }, 700);
     };
 
     
@@ -836,15 +1016,30 @@ function renderBattle() {
         // 3. 防禦力變化標籤
         if (mon.defMult && mon.defMult !== 1) {
             const isUp = mon.defMult > 1;
-            html += `<span class="buffTag ${isUp ? 'up' : 'down'}">防 ${isUp ? '▲' : '▼'}${(mon.defMult).toFixed(1)}</span>`;
+            html += `<span class="buffTag ${isUp ? 'up' : 'down'}">防 ${isUp ? '▲' : '▼'}${(mon.defMult).toFixed(1)}</span> `;
         }
-        
+
+        // 4. 威嚇層數標籤(原本intimidateStacks完全沒有顯示在UI上)
+        if (mon.intimidateStacks) {
+            html += `<span class="buffTag down" title="威嚇:攻擊力下降中">😨威嚇x${mon.intimidateStacks}</span>`;
+        }
+
         return html;
     };
 
     // --- 更新玩家 UI ---
     const pNameEl = document.getElementById('playerName');
-    pNameEl.innerHTML = `${pSp.name} Lv.${p.level} <span class="typeTag" style="background:${ELEMENT_META[pType].color};color:#111;">${ELEMENT_META[pType].name}</span><br><div style="margin-top:4px;">${getStatusAndBuffs(p)}</div>`;
+    const resonanceTagsHtml = (() => {
+        if (typeof calculatePartyResonance !== 'function') return '';
+        const r = calculatePartyResonance();
+        let html = r.active.map(a => `<span class="buffTag up" title="${a.name}">${a.icon}x${a.count}</span>`).join(' ');
+        if (typeof calculateTypeDiversityBonus === 'function') {
+            const d = calculateTypeDiversityBonus();
+            if (d) html += ` <span class="buffTag up" title="${d.name}">🌈${d.typeCount}屬性</span>`;
+        }
+        return html;
+    })();
+    pNameEl.innerHTML = `${pSp.name} Lv.${p.level} <span class="typeTag" style="background:${ELEMENT_META[pType].color};color:#111;">${ELEMENT_META[pType].name}</span><br><div style="margin-top:4px;">${getStatusAndBuffs(p)}</div><div style="margin-top:4px;">${resonanceTagsHtml}</div>`;
     
     document.getElementById('playerHpBar').style.width = Math.max(0, (p.hp / p.maxHp) * 100) + '%';
     document.getElementById('playerHpText').innerHTML = `HP ${p.hp}/${p.maxHp}`;

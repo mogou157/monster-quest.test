@@ -32,21 +32,21 @@ const SPECIES = [
   // ↓全新原創怪物(一般野生就會遇到)
   { id:'68', name:'鰭光 Luminfin', type:'light', color:'#ffdf7a', accent:'#fffde0', shape:'crystal',   baseHp:36, baseAtk:12, baseDef:9,  passive:'friendly' },
   { id:'71',   name:'蛛靈 Spidra',    type:'dark',  color:'#200000', accent:'#492366', outlineColor:'#E3F9FC', shape:'spider',   baseHp:34, baseAtk:13, baseDef:8,  passive:'poisonImmune' },
-  { id:'72', name:'妖菇 Mystroom',  type:'dark',  color:'#EAA4EB', accent:'#EBD4A4', shape:'mushroomb', baseHp:36, baseAtk:12, baseDef:10, passive:'statusExploit' },
+  { id:'72', name:'妖菇 Mystroom',  type:'dark',  color:'#EAA4EB', accent:'#EBD4A4', shape:'mushroom2', baseHp:36, baseAtk:12, baseDef:10, passive:'statusExploit' },
   { id:'74',  name:'陶甕獸 Urnling', type:'earth', color:'#D6A754', accent:'#f0d9a0', shape:'vase',     baseHp:33, baseAtk:12, baseDef:11, passive:'guts' },
   { id:'75',  name:'疊塊獸 Blockon', type:'earth', color:'#705119', accent:'#915D37', shape:'blocks',   baseHp:44, baseAtk:9,  baseDef:14, passive:'sandstormCure', evolutions:[{level:32, reqWeather:'sandstorm', to:'114'}] },
   { id:'76',   name:'Gerator',  type:'ice', color:'#99F2E2', accent:'#b39ddb', outlineColor:'#ecf0f1', shape:'refrigerator', baseHp:42, baseAtk:9,  baseDef:14, passive:'waterAbsorbDef' },
   { id:'77',     name:'Sweetce',  type:'ice', color:'#5678C7', accent:'#C7FBFC', outlineColor:'#F1EFEC', shape:'ice_cream',    baseHp:34, baseAtk:11, baseDef:8,  passive:'friendly', evolutions:[{level:28, reqItem:'leftovers', consumeItem:true, to:'115'}] },
-  { id:'78', name:'dandeice', type:'ice', color:'#C4843B', accent:'#C7FBFC', outlineColor:'#C7F9FC', shape:'dandelion',    baseHp:33, baseAtk:10, baseDef:9,  passive:'statusResilience' },
+  { id:'78', name:'dandeice', type:'ice', color:'#C4843B', accent:'#C7FBFC', outlineColor:'#C7F9FC', shape:'dandelion',    baseHp:33, baseAtk:10, baseDef:9,  passive:'statusResilience', evolutions:[{level:40, to:'136'}] },
   { id:'79',     name:'iflake',   type:'ice', color:'#4F92F7', accent:'#C7FBFC', outlineColor:'#C7F9FC', shape:'snowflake',    baseHp:32, baseAtk:11, baseDef:8,  passive:'snowSummon' },
   
   { id:'01',   name:'Ba-01',           type:'thunder', color:'#FFFE4D', accent:'#fff0a0', outlineColor:'#E3F9FC', shape:'battery',      baseHp:50, baseAtk:10, baseDef:10, passive:'martyr' },
   { id:'02',   name:'Semile',          type:'thunder', color:'#ffe98a', accent:'#fff0a0', outlineColor:'#ffffff', shape:'led_light',    baseHp:35, baseAtk:15, baseDef:7,  passive:'chargeUp', evolutions:[{level:28, reqMap:['map7'], to:'111'}] },
-  { id:'03',   name:'T-way',           type:'thunder', color:'#FFFE14', accent:'#fff0a0', outlineColor:'#ecf0f1', shape:'subway_head',  baseHp:45, baseAtk:12, baseDef:14, passive:'firstStrike' },
-  { id:'04',   name:'Fuyuka',          type:'thunder', color:'#ffe98a', accent:'#fff0a0', outlineColor:'#ecf0f1', shape:'floor_lamp',   baseHp:40, baseAtk:13, baseDef:9,  passive:'lightShield' },
+  { id:'03',   name:'T-way',           type:'thunder', color:'#FFFE14', accent:'#fff0a0', outlineColor:'#ecf0f1', shape:'subway_head',  baseHp:45, baseAtk:12, baseDef:14, passive:'firstStrike', evolutions:[{level:40, to:'135'}] },
+  { id:'04',   name:'Fuyuka',          type:'thunder', color:'#ffe98a', accent:'#fff0a0', outlineColor:'#ecf0f1', shape:'floor_lamp',   baseHp:40, baseAtk:13, baseDef:9,  passive:'lightShield', evolutions:[{level:35, reqResonance:true, to:'137'}] },
   { id:'05',   name:'Ranper',          type:'thunder', color:'#ffe98a', accent:'#fff0a0', outlineColor:'#ffffff', shape:'head_lamp',    baseHp:34, baseAtk:14, baseDef:8,  passive:'dazzling' },
   { id:'06',   name:'Doutain',         type:'thunder', color:'#FCE490', accent:'#FFFE14', outlineColor:'#ecf0f1', shape:'lighthouse',   baseHp:48, baseAtk:10, baseDef:15, passive:'illuminate' },
-  { id:'07',   name:'提灯chouchin',    type:'fire',    color:'#FFFE0A', accent:'#FFFE4D', outlineColor:'#ff6b4a', shape:'lantern_2',    baseHp:36, baseAtk:14, baseDef:7,  passive:'steady' },
+  { id:'07',   name:'提灯chouchin',    type:'fire',    color:'#FFFE0A', accent:'#FFFE4D', outlineColor:'#ff6b4a', shape:'lantern_2',    baseHp:36, baseAtk:14, baseDef:7,  passive:'steady', evolutions:[{level:40, to:'139'}] },
   { id:'08',   name:'Fuusen',          type:'fire',    color:'#FF7E1A', accent:'#ffb347', outlineColor:'#F7D499', shape:'air_balloon',  baseHp:55, baseAtk:10, baseDef:5,  passive:'levitate', evolutions:[{level:30, reqStatus:'burn', to:'109'}] },
   { id:'09',   name:'Rousoku',         type:'fire',    color:'#ff6b4a', accent:'#ffb347', outlineColor:'#ecf0f1', shape:'candle',       baseHp:28, baseAtk:17, baseDef:6,  passive:'firelight' },
   { id:'10',   name:'Kacyo',           type:'fire',    color:'#ff6b4a', accent:'#ffb347', outlineColor:'#F0A932', shape:'butterfly_3',  baseHp:32, baseAtk:15, baseDef:7,  passive:'guts' },
@@ -70,7 +70,7 @@ const SPECIES = [
   { id:'27', name:'Voltgem',      type:'light', color:'#00E5FF', accent:'#E0FFFF', outlineColor:'#008B8B', shape:'diamond',      baseHp:35, baseAtk:16, baseDef:8,  passive:'shineCure' },
   { id:'28', name:'Pulseheart',   type:'light', color:'#FF1493', accent:'#FFB6C1', outlineColor:'#8B008B', shape:'heart',        baseHp:44, baseAtk:10, baseDef:14, passive:'wheelDef' },
   { id:'29', name:'Synthekey',    type:'wind', color:'#F8F8FF', accent:'#000000', outlineColor:'#1E90FF', shape:'piano_keys',   baseHp:38, baseAtk:14, baseDef:9,  passive:'windResist' },
-  { id:'30', name:'Flashlamp',    type:'light', color:'#F0E68C', accent:'#FFFFE0', outlineColor:'#8B4513', shape:'floor_lamp',   baseHp:42, baseAtk:11, baseDef:13, passive:'paralysisImmune' },
+  { id:'30', name:'Flashlamp',    type:'light', color:'#F0E68C', accent:'#FFFFE0', outlineColor:'#8B4513', shape:'floor_lamp',   baseHp:42, baseAtk:11, baseDef:13, passive:'paralysisImmune', evolutions:[{level:35, reqResonance:true, to:'138'}] },
   { id:'31', name:'Sparkdesk',    type:'light', color:'#C0C0C0', accent:'#FFFFFF', outlineColor:'#8A4545', shape:'desk_lamp',    baseHp:36, baseAtk:13, baseDef:9,  passive:'expBoost' },
   { id:'32', name:'Voltlantern',  type:'light', color:'#FFA500', accent:'#FFD700', outlineColor:'#8B0000', shape:'lantern_1',    baseHp:39, baseAtk:12, baseDef:10, passive:'nightWalker' },
   { id:'33', name:'Beaconvolt',   type:'light', color:'#F5F5F5', accent:'#FFFAFA', outlineColor:'#2F4F4F', shape:'lighthouse',   baseHp:50, baseAtk:9,  baseDef:15, passive:'illuminate' },
@@ -195,6 +195,18 @@ const SPECIES = [
   { id:'133', name:'極速輪 Velocycle', type:'wind', color:'#D3D3D3', accent:'#F2EAA2', outlineColor:'#696969', shape:'bike', baseHp:54, baseAtk:23, baseDef:18, passive:'evasive', evolved:true, fused:true },
   // 134 電瓶車 (Ba-01 + 飛輪獸 融合)
   { id:'134', name:'電瓶車 BatteryCart', type:'thunder', color:'#FFFE4D', accent:'#F2EAA2', outlineColor:'#E3F9FC', shape:'bike', baseHp:62, baseAtk:20, baseDef:21, passive:'martyr', evolved:true, fused:true },
+
+  // ↓↓↓ 新增普通進化型態 (135~139) ↓↓↓
+  // 135 磁浮列車 (T-way 的進化型)
+  { id:'135', name:'磁浮列車 MagLev', type:'thunder', color:'#FFFE14', accent:'#00FFFF', outlineColor:'#ecf0f1', shape:'subway_head', baseHp:56, baseAtk:20, baseDef:19, passive:'firstStrike', evolved:true },
+  // 136 雪羽蒲公英 (dandeice 的進化型)
+  { id:'136', name:'雪羽蒲公英 Snowdown', type:'ice', color:'#EAF6FF', accent:'#C7FBFC', outlineColor:'#8fdcff', shape:'dandelion', baseHp:52, baseAtk:17, baseDef:16, passive:'statusResilience', evolved:true },
+  // 137 雷光立燈 (Fuyuka 的進化型,需要「電器機械共鳴」發動時才能進化)
+  { id:'137', name:'雷光立燈 Voltstand', type:'thunder', color:'#ffe98a', accent:'#00FFFF', outlineColor:'#ecf0f1', shape:'floor_lamp', baseHp:50, baseAtk:22, baseDef:15, passive:'lightShield', evolved:true },
+  // 138 探照聚光燈 (Flashlamp 的進化型,需要「電器機械共鳴」發動時才能進化)
+  { id:'138', name:'探照聚光燈 Searchlume', type:'light', color:'#FFFFE0', accent:'#F0E68C', outlineColor:'#8B4513', shape:'floor_lamp', baseHp:52, baseAtk:19, baseDef:19, passive:'paralysisImmune', evolved:true },
+  // 139 業火提灯 (提灯chouchin 的進化型)
+  { id:'139', name:'業火提灯 Blazechouchin', type:'fire', color:'#FF4500', accent:'#FFFE0A', outlineColor:'#ff6b4a', shape:'lantern_2', baseHp:48, baseAtk:24, baseDef:12, passive:'steady', evolved:true },
 ];
 
 // 取得當前生效的特性（支援基因複製）

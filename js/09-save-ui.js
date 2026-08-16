@@ -25,15 +25,39 @@ document.getElementById('autoSaveToggle').onchange = (e)=>{
 document.getElementById('exportLiveBtn').onclick = ()=>{
   if(inBattle){ toast('戰鬥中無法匯出存檔'); return; }
   if(!party.length){ toast('目前沒有可以匯出的進度'); return; }
-  
+
   // 1. 強制存檔一次，確保匯出的資料是最新的
   SaveManager.save(true);
-  
+
   // 2. 透過標準的 SaveManager 產生代碼
   const code = 'MQSAVE-' + SaveManager.export();
-  
-  // 3. 彈出簡單乾淨的系統視窗讓玩家複製 (不會干擾背景遊戲畫面)
-  prompt('📦 這是你目前的進度代碼，請全選並「複製」：\n(之後可以在遊戲最一開始的選單點擊「匯入」來接續遊玩)', code);
+
+  // 3. 🌟 改用跟存檔畫面一樣的專屬匯出介面(不會像 prompt() 一樣截斷文字)
+  closeOverlays();
+  document.getElementById('eiTitle').textContent = `▌ 匯出目前進度 ▌`;
+  const ta = document.getElementById('eiTextarea');
+  ta.value = code;
+  ta.readOnly = true;
+
+  document.getElementById('eiCopyBtn').style.display = 'block';
+  document.getElementById('eiImportBtn').style.display = 'none';
+
+  document.getElementById('eiCopyBtn').onclick = async () => {
+      ta.select();
+      try {
+          await navigator.clipboard.writeText(code);
+          toast('✅ 代碼已成功複製到剪貼簿！');
+      } catch(e) {
+          toast('請手動選取文字並複製 (Ctrl+C)');
+      }
+  };
+
+  document.getElementById('eiCloseBtn').onclick = () => {
+      closeOverlays();
+  };
+
+  overlayOpen = 'exportImport';
+  document.getElementById('exportImportOverlay').style.display = 'flex';
 };
 async function renderSlotScreen(){
   const list = document.getElementById('slotList');

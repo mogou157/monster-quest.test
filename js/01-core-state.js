@@ -24,11 +24,11 @@ if (!window.storage) {
 // ==========================================
 const GameState = {
     version: 2,
-    player: { mapId: 'map1', x: 2,y: 2,coins: 60},
+    player: { mapId: 'map1', x: 2,y: 2,coins: 60, name: '訓練家'},
     party: {active: [], storage: [],activeIndex: 0,dex: new Set(),seenDex: new Set()},
     inventory: {potion: 2, candy: 1, fullHeal: 1 },
     world: {legendaryUnlocked: false,visitedMaps: new Set(['map1']), trainersDefeated: new Set(), dailyProgress: { date: '', catches: 0, battles: 0, shopVisits: 0, claimed: {} },
-        started: false
+        started: false, notifiedChapters: []
     },
 };
 // ==========================================
@@ -284,6 +284,11 @@ const BattleManager = {
             showBattleControls();
             return;
         }
+        if (move.reqResonanceCat && (typeof calculatePartyResonance === 'undefined' || !calculatePartyResonance().active.some(a => a.catId === move.reqResonanceCat))) {
+            log(`${MonsterUtil.species(p).name} 想使出 ${move.name},但隊伍裡的共鳴還沒有發動，招式使不出來！`);
+            showBattleControls();
+            return;
+        }
         p.moveUses = p.moveUses || {};
         if (move.maxUses && (p.moveUses[move.id] || 0) >= move.maxUses) {
             log(`${MonsterUtil.species(p).name} 的 ${move.name} 已經沒有剩餘使用次數了！`);
@@ -325,7 +330,7 @@ const BattleManager = {
                     setTimeout(()=> endBattle(null), 1000);
                     return;
                 }
-} else if(!checkHit(p, move, wild)){
+} else if(!checkHit(p, move, wild).hit){
                   wild.lastMoveMissed = true;
                 if(move.accuracyStack) wild.honeMissCount = (wild.honeMissCount || 0) + 1;
                 
@@ -448,6 +453,76 @@ const BattleManager = {
                     wild.atkMult = 1 / (wild.atkMult || 1);
                     wild.defMult = 1 / (wild.defMult || 1);
                     log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name}，對方能力變化全部顛倒了！`);
+                } else if (move.swapBuffStat || move.swapCureStatus) {
+                    // 🌟 應援換位系:給即將上場的隊友加成,然後強制換人
+                    playLungeAnim('playerCanvas','player'); playBuffAnim('playerCanvas');
+                    const available = party.map((m,i)=>({m,i})).filter(o => o.m.hp>0 && o.i!==GameState.party.activeIndex);
+                    if (available.length === 0) {
+                        log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},但沒有其他隊友可以上場了！`);
+                    } else {
+                        const target = available[Math.floor(Math.random()*available.length)];
+                        let effectMsg = '';
+                        if (move.swapBuffStat) {
+                            target.m[move.swapBuffStat+'Mult'] = Math.min(2.0, (target.m[move.swapBuffStat+'Mult']||1) + move.swapBuffAmount);
+                            effectMsg = `為即將上場的 ${MonsterUtil.species(target.m).name} 提升了${move.swapBuffStat==='atk'?'攻擊力':'防禦力'}!`;
+                        } else if (move.swapCureStatus) {
+                            target.m.status = null;
+                            effectMsg = `為即將上場的 ${MonsterUtil.species(target.m).name} 淨化了異常狀態!`;
+                        }
+                        log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name}!${effectMsg}`);
+                        renderBattle();
+                        setTimeout(() => doSwap(target.i), 900);
+                        return;
+                    }
+                } else if (move.bondBurstEffect) {
+                    // 🌟 羈絆爆發系:效果隨親密度(0~400)增強
+                    const bond = p.bond || 0;
+                    const bondFactor = Math.min(1, bond / 400);
+                    playLungeAnim('playerCanvas','player');
+
+                    if (move.bondBurstEffect === 'power' || move.bondBurstEffect === 'doubleHit') {
+                        setTimeout(()=> playElementHitAnim('wildCanvas', move.type), 150);
+                        let hits = 1;
+                        if (move.bondBurstEffect === 'doubleHit' && Math.random() < bondFactor * 0.6) hits = 2;
+                        let totalDmg = 0, lastMult = 1, lastCrit = false;
+                        for (let h=0; h<hits; h++){
+                            const bonusPower = move.bondBurstEffect === 'power' ? (1 + bondFactor) : 1;
+                            const calc = damageCalc(p, Object.assign({}, move, {power: move.power * bonusPower}), wild);
+                            totalDmg += calc.dmg; lastMult = calc.mult; lastCrit = calc.crit;
+                            wild.hp = Math.max(0, wild.hp - calc.dmg);
+                        }
+                        let msg = prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},造成了 ${totalDmg} 傷害!` + (hits===2 ? '(二連擊!)' : '');
+                        if(lastMult>1) msg += '效果絕佳!'; if(lastMult<1) msg += '效果不太好...'; if(lastCrit) msg += ' 會心一擊!';
+                        log(msg);
+                    } else if (move.bondBurstEffect === 'acc') {
+                        setTimeout(()=> playElementHitAnim('wildCanvas', move.type), 150);
+                        const calc = damageCalc(p, move, wild);
+                        wild.hp = Math.max(0, wild.hp - calc.dmg);
+                        let msg = prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},造成了 ${calc.dmg} 傷害!(親密度讓招式更容易命中)`;
+                        if(calc.mult>1) msg += '效果絕佳!'; if(calc.mult<1) msg += '效果不太好...'; if(calc.crit) msg += ' 會心一擊!';
+                        log(msg);
+                    } else if (move.bondBurstEffect === 'heal') {
+                        const healPct = 0.2 + bondFactor * 0.3;
+                        const healAmt = Math.max(1, Math.round(p.maxHp * healPct));
+                        p.hp = Math.min(p.maxHp, p.hp + healAmt);
+                        log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},靠著與訓練家的羈絆恢復了 ${healAmt} 點HP!`);
+                    } else if (move.bondBurstEffect === 'selfBuff') {
+                        const amt = 0.15 + bondFactor * 0.25;
+                        p.atkMult = Math.min(3.0, (p.atkMult||1) + amt);
+                        p.defMult = Math.min(3.0, (p.defMult||1) + amt);
+                        log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},攻擊力與防禦力都提升了!`);
+                    } else if (move.bondBurstEffect === 'enemyDebuff') {
+                        const amt = 0.15 + bondFactor * 0.25;
+                        wild.atkMult = Math.max(0.2, (wild.atkMult||1) - amt);
+                        wild.defMult = Math.max(0.2, (wild.defMult||1) - amt);
+                        log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},對方的攻擊力與防禦力都下降了!`);
+                    } else if (move.bondBurstEffect === 'evade') {
+                        p.evadeNextChance = 0.3 + bondFactor * 0.4;
+                        log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},提高了迴避下一次攻擊的機率!`);
+                    } else if (move.bondBurstEffect === 'crit') {
+                        p.critBoostNext = 0.2 + bondFactor * 0.3;
+                        log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},下一次攻擊更容易會心一擊!`);
+                    }
                 } else {
                     
                     // ⚔️ 攻擊招式結算
@@ -469,14 +544,15 @@ const BattleManager = {
                     // 標記受傷給「復仇」使用
                     if (dmg > 0) wild.tookDamageLastTurn = true; 
                     
+                    let msg = prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},造成 ${dmg} 傷害!`;
+
                     // 處理反擊機制
                     if (wild.counterReady && dmg > 0 && move.power > 0) {
                         let counterDmg = Math.max(1, Math.round(dmg * wild.counterReady));
-                        p.hp = Math.max(0, p.hp - counterDmg);
+                        p.hp = applyBondSurvival(p, counterDmg);
                         msg += ` ⚡ 對方發動反擊，彈回了 ${counterDmg} 點傷害！`;
                         wild.counterReady = null; 
                     }
-                    let msg = prefix + `${MonsterUtil.species(p).name} 使出 ${move.name},造成 ${dmg} 傷害!`;
                     
                     if (move.leaveOneHp && wild.hp === 1 && dmg === 0) {
                         msg += ' 刀下留人手下留情了！';
@@ -510,7 +586,7 @@ const BattleManager = {
                     }
                     if(move.recoilPct){
                         const recoil = Math.max(1, Math.round(dmg * move.recoilPct));
-                        p.hp = Math.max(0, p.hp - recoil);
+                        p.hp = applyBondSurvival(p, recoil);
                         msg += ` 自己也受到了 ${recoil} 點反彈傷害！`;
                     }
                     if(move.drainPct && !wild.healBlockTurns){
@@ -536,11 +612,25 @@ const BattleManager = {
                         p.rechargeTurns = 1;
                         msg += ' 釋放了全部力量，下一回合將無法動彈！';
                     }
+                    if (move.forceSwapAfter) {
+                        const available = party.map((m,i)=>({m,i})).filter(o => o.m.hp>0 && o.i!==GameState.party.activeIndex);
+                        if (available.length > 0) msg += ' 順勢撤回,換上了後備隊友！';
+                    }
                     const afterMsgs = triggerAfterAttackPassives(p, wild, move, { hit: true, damage: dmg });
                     if(afterMsgs.length > 0) {
                         msg += ' ' + afterMsgs.join(' ');
                     }
                     log(msg);
+
+                    if (move.forceSwapAfter && wild.hp > 0) {
+                        const available = party.map((m,i)=>({m,i})).filter(o => o.m.hp>0 && o.i!==GameState.party.activeIndex);
+                        if (available.length > 0) {
+                            renderBattle();
+                            const next = available[Math.floor(Math.random()*available.length)].i;
+                            setTimeout(() => doSwap(next), 900);
+                            return;
+                        }
+                    }
                 }
             }
         }
@@ -631,7 +721,7 @@ const BattleManager = {
                 renderBattle();
                 showBattleControls(); 
                 return;
-} else if(!checkHit(wild, move, p)){
+} else if(!checkHit(wild, move, p).hit){
                   wild.lastMoveMissed = true;
                 if(move.accuracyStack) wild.honeMissCount = (wild.honeMissCount || 0) + 1;
                 log(prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name},但沒有命中!`);
@@ -767,10 +857,12 @@ const BattleManager = {
                         dmg = p.hp - 1;
                     }
                     
-                    p.hp = Math.max(0, p.hp - dmg);
+                    p.hp = applyBondSurvival(p, dmg);
                     // 🌟 標記受傷給「復仇」使用
                     if (dmg > 0) p.tookDamageLastTurn = true; 
                     
+                    let msg = prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name},造成 ${dmg} 傷害!`;
+
                     // 🌟 處理反擊機制
                     if (p.counterReady && dmg > 0 && move.power > 0) {
                         let counterDmg = Math.max(1, Math.round(dmg * p.counterReady));
@@ -778,7 +870,6 @@ const BattleManager = {
                         msg += ` ⚡ ${MonsterUtil.species(p).name} 發動反擊，彈回了 ${counterDmg} 點傷害！`;
                         p.counterReady = null; // 消耗反擊狀態
                     }
-                    let msg = prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name},造成 ${dmg} 傷害!`;
                     
                     if (move.leaveOneHp && p.hp === 1 && dmg === 0) {
                         msg += ' 刀下留人手下留情了！';
@@ -920,12 +1011,16 @@ const BattleManager = {
             }
         });
 
+        const diversity = (typeof calculateTypeDiversityBonus === 'function') ? calculateTypeDiversityBonus() : null;
+        const diversityExpMult = diversity ? diversity.expMult : 1;
+        const diversityCoinMult = (diversity && isTrainer) ? diversity.coinMult : 1;
+
         const bonus = isTrainer ? 1.4 : 1.0;
-        const baseExp = Math.round((10 + wild.level*4) * bonus * windExpMult); // 套用風系全隊加成
-        const coinGain = Math.round((5 + wild.level*2) * bonus * extraGoldMult); // 套用暗系金幣加成
+        const baseExp = Math.round((10 + wild.level*4) * bonus * windExpMult * diversityExpMult); // 套用風系全隊加成+屬性多樣性加成
+        const coinGain = Math.round((5 + wild.level*2) * bonus * extraGoldMult * diversityCoinMult); // 套用暗系金幣加成+屬性多樣性加成(僅訓練家戰鬥)
         
         GameState.player.coins += coinGain;
-        GameState.player.totalEarnedCoins = (GameState.player.totalEarnedCoins || 0) + coinGain; // 🌟 歷史總金幣紀錄(保留)        
+        GameState.player.totalEarnedCoins = (GameState.player.totalEarnedCoins || 0) + coinGain; // 🌟 歷史總金幣紀錄
         let scavengeMsg = '';
         if(party.some(m => m.hp > 0 && MonsterUtil.passive(m) === 'scavenger') && Math.random() < 0.3){
             const extraCoins = Math.round(wild.level * 3);
@@ -944,7 +1039,7 @@ const BattleManager = {
             
 // 👇 🌟 戰勝存活：依心情給予友好度
             let winBondGain = (m.mood === 'want_fight') ? 4 : 2;
-            m.bond = Math.min(200, (m.bond || 0) + winBondGain);            
+            m.bond = Math.min(400, (m.bond || 0) + winBondGain);            
             let gain = i===GameState.party.activeIndex ? baseExp : Math.round(baseExp*0.5);
             // ✨ 光系羈絆共鳴：自身經驗值加成
     const pTier = getBondTier(m.bond);
@@ -959,7 +1054,7 @@ const BattleManager = {
             while(m.exp >= m.level*20){
                 m.exp -= m.level*20;
                 m.level++;
-                m.bond = Math.min(200, (m.bond || 0) + 2);
+                m.bond = Math.min(400, (m.bond || 0) + 2);
                 let spNow = MonsterUtil.species(m);
                 let stats = computeStats(spNow, m.level, m.iv, m.bond);
                 m.maxHp = stats.maxHp; m.atk = stats.atk; m.def = stats.def;
@@ -996,6 +1091,7 @@ const BattleManager = {
                             if (evo.reqSteps && (GameState.player.totalSteps || 0) < evo.reqSteps) canEvolve = false;
                             if (evo.reqStatus && m.status !== evo.reqStatus) canEvolve = false;
                             if (evo.reqMove && (!m.moves.includes(evo.reqMove) && !(m.moveHistory||[]).includes(evo.reqMove))) canEvolve = false;
+                            if (evo.reqResonance && (typeof calculatePartyResonance === 'undefined' || !calculatePartyResonance().active.some(a => a.catId === SHAPE_CATEGORIES[spNow.shape]))) canEvolve = false;
 
                             if (canEvolve) {
                                 evolvedToId = evo.to;

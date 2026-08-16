@@ -106,6 +106,29 @@ earthShift: { id: 'earthShift', name: '大地型態', type: 'earth', power: 0, a
   chargeStrike: { name:'蓄力爆發', power: () => 1.2 + Math.random() * 2.4, acc: 1.0, typeMode: 'none', needsCharge: true },
   elementalRoulette: { name:'元素輪盤', power: 1.5, acc: 0.9, typeMode: 'random' },
   hyperBeam: { name:'破滅死光', power: () => 1.5 + Math.random() * 2.3, acc: 0.5, typeMode: 'none', rechargeNextTurn: true },
+// ---------- 換人支援系招式 (使出後會強制換人,由後備隊友接手) ----------
+  allySwapAtkUp:  { name:'應援换位·攻', power:0, acc:1.0, typeMode:'none', swapBuffStat:'atk', swapBuffAmount:0.2 },
+  allySwapDefUp:  { name:'應援换位·防', power:0, acc:1.0, typeMode:'none', swapBuffStat:'def', swapBuffAmount:0.2 },
+  allySwapCure:   { name:'交替看護', power:0, acc:1.0, typeMode:'none', swapCureStatus:true },
+  strikeAndSwap:  { name:'突擊撤退', power:1.0, acc:1.0, alwaysHit:true, typeMode:'self', forceSwapAfter:true },
+// ---------- 羈絆爆發系招式 (acc:0.8,效果隨親密度增強,親密度需超過160才能學會) ----------
+  bondBurstPower:   { name:'羈絆爆發·猛襲',   power:1.0, acc:0.8, typeMode:'self', reqBondToLearn:160, bondBurstEffect:'power' },
+  bondBurstAcc:     { name:'羈絆爆發·鎖定',   power:0.8, acc:0.8, typeMode:'self', reqBondToLearn:160, bondBurstEffect:'acc' },
+  bondBurstHeal:    { name:'羈絆爆發·治癒',   power:0,   acc:0.8, typeMode:'none', reqBondToLearn:160, bondBurstEffect:'heal' },
+  bondBurstSelfBuff:{ name:'羈絆爆發·奮起',   power:0,   acc:0.8, typeMode:'none', reqBondToLearn:160, bondBurstEffect:'selfBuff' },
+  bondBurstDebuff:  { name:'羈絆爆發·威壓',   power:0,   acc:0.8, typeMode:'none', reqBondToLearn:160, bondBurstEffect:'enemyDebuff' },
+  bondBurstDouble:  { name:'羈絆爆發·連擊',   power:0.8, acc:0.8, typeMode:'self', reqBondToLearn:160, bondBurstEffect:'doubleHit' },
+  bondBurstEvade:   { name:'羈絆爆發·迴避',   power:0,   acc:0.8, typeMode:'none', reqBondToLearn:160, bondBurstEffect:'evade' },
+  bondBurstCrit:    { name:'羈絆爆發·會心',   power:0,   acc:0.8, typeMode:'none', reqBondToLearn:160, bondBurstEffect:'crit' },
+// ---------- 共鳴專屬招式 (每個外型共鳴類別一招,需該共鳴發動中才能使出) ----------
+  swarmSting:     { name:'蟲群亂舞',   power:1.4, acc:0.9, typeMode:'self', reqResonanceCat:'insect' },
+  wildInstinct:   { name:'野性直覺',   power:1.2, acc:1.0, typeMode:'self', reqResonanceCat:'animal', buffStat:'def', buffAmount:0.15 },
+  natureBloom:    { name:'自然綻放',   power:0,   acc:1.0, typeMode:'none', reqResonanceCat:'plant', healPct:0.3 },
+  overclock:      { name:'超頻驅動',   power:1.5, acc:0.85,typeMode:'self', reqResonanceCat:'machine', selfDebuffStat:'def', selfDebuffAmount:0.2 },
+  crystalBarrier: { name:'結晶壁壘',   power:0,   acc:1.0, typeMode:'none', reqResonanceCat:'mineral', buffStat:'def', buffAmount:0.3 },
+  junkStorm:      { name:'雜物風暴',   power:1.3, acc:0.9, typeMode:'self', reqResonanceCat:'object' },
+// ---------- 屬性剋制招式 (剋對方屬性;對方無屬性時,改用自己的屬性計算) ----------
+  adaptiveStrike: { name:'因勢而動', power:1.3, acc:0.95, typeMode:'adaptive' },
 // ...保留原來的招式...
 };
 const LEARNSET = [
@@ -134,39 +157,39 @@ const LEARNSET = [
   { level: 14, moveId: 'firstImp', typeFilter: 'thunder' }, // 奪得先機
   { level: 14, moveId: 'firstImp', typeFilter: 'none' },
 
-  // === 🟠 中後期：核心流派成型 (Lv 16 ~ 22) ===
+  // === 🟠 中後期：核心流派成型 (Lv 16 ~ 33,原本擠在16/18兩級,現在分散開) ===
   // 1. 吸血消耗流
   { level: 16, moveId: 'drain', typeFilter: 'wood' },
   { level: 16, moveId: 'drain', typeFilter: 'dark' },
-  { level: 18, moveId: 'synthesis', typeFilter: 'wood' },
-  { level: 18, moveId: 'synthesis', typeFilter: 'light' },
-  { level: 20, moveId: 'healBlock', typeFilter: 'dark' },
+  { level: 22, moveId: 'synthesis', typeFilter: 'wood' },
+  { level: 22, moveId: 'synthesis', typeFilter: 'light' },
+  { level: 30, moveId: 'healBlock', typeFilter: 'dark' },
 
   // 2. 睡夢坦克流
-  { level: 16, moveId: 'rest', typeFilter: 'ice' },
-  { level: 16, moveId: 'rest', typeFilter: 'earth' },
-  { level: 16, moveId: 'rest', typeFilter: 'none' },
-  { level: 18, moveId: 'deepSleep', typeFilter: 'ice' },
-  { level: 18, moveId: 'deepSleep', typeFilter: 'earth' },
-  { level: 20, moveId: 'sleepwalk', typeFilter: 'ice' },
-  { level: 20, moveId: 'sleepwalk', typeFilter: 'none' },
+  { level: 17, moveId: 'rest', typeFilter: 'ice' },
+  { level: 17, moveId: 'rest', typeFilter: 'earth' },
+  { level: 17, moveId: 'rest', typeFilter: 'none' },
+  { level: 24, moveId: 'deepSleep', typeFilter: 'ice' },
+  { level: 24, moveId: 'deepSleep', typeFilter: 'earth' },
+  { level: 31, moveId: 'sleepwalk', typeFilter: 'ice' },
+  { level: 31, moveId: 'sleepwalk', typeFilter: 'none' },
   
   // 3. 怒火連擊流
-  { level: 16, moveId: 'takeDown', typeFilter: 'fire' },
-  { level: 16, moveId: 'takeDown', typeFilter: 'earth' },
-  { level: 18, moveId: 'hone', typeFilter: 'thunder' }, // 鷹眼鎖定
-  { level: 18, moveId: 'hone', typeFilter: 'fire' },
-  { level: 20, moveId: 'tantrum', typeFilter: 'earth' }, // 不屈怒火
-  { level: 20, moveId: 'tantrum', typeFilter: 'fire' },
+  { level: 19, moveId: 'takeDown', typeFilter: 'fire' },
+  { level: 19, moveId: 'takeDown', typeFilter: 'earth' },
+  { level: 26, moveId: 'hone', typeFilter: 'thunder' }, // 鷹眼鎖定
+  { level: 26, moveId: 'hone', typeFilter: 'fire' },
+  { level: 33, moveId: 'tantrum', typeFilter: 'earth' }, // 不屈怒火
+  { level: 33, moveId: 'tantrum', typeFilter: 'fire' },
 
-  // === 🔴 大後期：終極爆發 (Lv 25 ~ 30) ===
-  { level: 24, moveId: 'regenSong', typeFilter: 'water' }, // 大地祈禱 (後期超強群補)
-  { level: 24, moveId: 'regenSong', typeFilter: 'light' },
-  { level: 25, moveId: 'berserk', typeFilter: 'dark' },
-  { level: 25, moveId: 'berserk', typeFilter: 'thunder' },
-  { level: 26, moveId: 'superpower', typeFilter: 'earth' },
-  { level: 26, moveId: 'superpower', typeFilter: 'none' },
-  { level: 28, moveId: 'blast' }, // 全屬性終極大招解鎖
+  // === 🔴 大後期：終極爆發 (Lv 21 ~ 45,延伸範圍讓高等級怪物一路都學得到新招) ===
+  { level: 36, moveId: 'regenSong', typeFilter: 'water' }, // 大地祈禱 (後期超強群補)
+  { level: 36, moveId: 'regenSong', typeFilter: 'light' },
+  { level: 21, moveId: 'berserk', typeFilter: 'dark' },
+  { level: 21, moveId: 'berserk', typeFilter: 'thunder' },
+  { level: 27, moveId: 'superpower', typeFilter: 'earth' },
+  { level: 27, moveId: 'superpower', typeFilter: 'none' },
+  { level: 38, moveId: 'blast' }, // 全屬性終極大招解鎖
 
   // === ✨ 特殊專屬技能 (指定 Species 才能學) ===
   { level: 12, moveId: 'hypnosis', speciesFilter: '72' }, // 妖菇 Mystroom 專屬催眠
@@ -175,7 +198,7 @@ const LEARNSET = [
   { level: 15, moveId: 'thunderShift', speciesFilter: '31' }, // Sparkdesk 專屬雷屬化
   { level: 18, moveId: 'escape', speciesFilter: '62' }, // 羽風 Windra 專屬金蟬脫殼
   { level: 18, moveId: 'escape', speciesFilter: '44' }, // 疾風蜓 Drafly 專屬金蟬脫殼
-  // === 🛡️ 新增戰術與防禦技能 (Lv 14 ~ 32) ===
+  // === 🛡️ 新增戰術與防禦技能 (Lv 14 ~ 45) ===
 
   // 1. 守勢 (guard) - 適合厚重的屬性與盾牌怪獸
   { level: 14, moveId: 'guard', typeFilter: 'earth' },
@@ -191,34 +214,34 @@ const LEARNSET = [
   { level: 19, moveId: 'purify', typeFilter: 'water' },
 
   // 4. 挑釁 (taunt) - 適合狡猾的屬性與特定怪獸
-  { level: 21, moveId: 'taunt', typeFilter: 'dark' },
-  { level: 21, moveId: 'taunt', typeFilter: 'wind' },
-  { level: 21, moveId: 'taunt', speciesFilter: '72' }, // 妖菇 Mystroom
+  { level: 20, moveId: 'taunt', typeFilter: 'dark' },
+  { level: 20, moveId: 'taunt', typeFilter: 'wind' },
+  { level: 20, moveId: 'taunt', speciesFilter: '72' }, // 妖菇 Mystroom
 
   // 5. 反擊 (counter) - 適合擅長肉搏的地、無屬性
-  { level: 22, moveId: 'counter', typeFilter: 'earth' },
-  { level: 22, moveId: 'counter', typeFilter: 'none' },
+  { level: 23, moveId: 'counter', typeFilter: 'earth' },
+  { level: 23, moveId: 'counter', typeFilter: 'none' },
 
   // 6. 蓄力 (charge) - 【全體通用】所有怪獸到了 Lv.25 都能學會的增傷爆發技
   { level: 25, moveId: 'charge' },
 
   // 7. 復仇 (revenge) - 適合具有攻擊性的火、暗屬性
-  { level: 26, moveId: 'revenge', typeFilter: 'fire' },
-  { level: 26, moveId: 'revenge', typeFilter: 'dark' },
+  { level: 28, moveId: 'revenge', typeFilter: 'fire' },
+  { level: 28, moveId: 'revenge', typeFilter: 'dark' },
 
   // 8. 能力交換 (swapStats) - 適合神秘的光、風、無屬性
-  { level: 27, moveId: 'swapStats', typeFilter: 'light' },
-  { level: 27, moveId: 'swapStats', typeFilter: 'wind' },
-  { level: 27, moveId: 'swapStats', typeFilter: 'none' },
+  { level: 29, moveId: 'swapStats', typeFilter: 'light' },
+  { level: 29, moveId: 'swapStats', typeFilter: 'wind' },
+  { level: 29, moveId: 'swapStats', typeFilter: 'none' },
 
   // 9. 生命獻祭 (sacrifice) - 適合暗、火屬性，以及會自爆的危險怪獸
-  { level: 28, moveId: 'sacrifice', typeFilter: 'dark' },
-  { level: 28, moveId: 'sacrifice', typeFilter: 'fire' },
-  { level: 28, moveId: 'sacrifice', speciesFilter: '01' }, // Ba-01 電池
+  { level: 32, moveId: 'sacrifice', typeFilter: 'dark' },
+  { level: 32, moveId: 'sacrifice', typeFilter: 'fire' },
+  { level: 32, moveId: 'sacrifice', speciesFilter: '01' }, // Ba-01 電池
 
-  // 10. 絕境反擊 (lastStand) - 【全體通用】作為 Lv.32 的大後期翻盤神技
-  { level: 32, moveId: 'lastStand' },
-  { moveId: 'earthShift', level: 28, speciesFilter: '102' },
+  // 10. 絕境反擊 (lastStand) - 【全體通用】終極大後期翻盤神技,延伸到Lv.45才學得到
+  { level: 45, moveId: 'lastStand' },
+  { moveId: 'earthShift', level: 40, speciesFilter: '102' },
 ];
 function moveDisplayName(moveId, mon){
   if(moveId==='ultimate') return `${MonsterUtil.species(mon).name.split(' ')[0]}爆擊`;
@@ -253,7 +276,13 @@ function resolveMove(moveId, mon){
     lowHpPower: def.lowHpPower, tauntTurns: def.tauntTurns,
     applyLeech: def.applyLeech, sacrificePct: def.sacrificePct,
     nextAttackMultiplier: def.nextAttackMultiplier, cureStatus: def.cureStatus,
-    swapStats: def.swapStats
+    swapStats: def.swapStats,
+    // 👇 🌟 這次新增的招式效果欄位
+    typeMode: def.typeMode, // 讓 calculateDamage 可以判斷 adaptive 模式
+    swapBuffStat: def.swapBuffStat, swapBuffAmount: def.swapBuffAmount, swapCureStatus: def.swapCureStatus,
+    forceSwapAfter: def.forceSwapAfter, alwaysHit: def.alwaysHit,
+    reqBondToLearn: def.reqBondToLearn, bondBurstEffect: def.bondBurstEffect,
+    reqResonanceCat: def.reqResonanceCat, healPct: def.healPct,
   };
 }
 function getMoves(mon){
@@ -303,6 +332,39 @@ function applyStatus(target, statusId, source = null) {
 // ==========================================
 // 🎯 統一戰鬥命中系統 (使用 0.0 ~ 1.0 的 acc 屬性)
 // ==========================================
+// ==========================================
+// 💞 隱藏親密度加成 (超過拍檔等級之後才會慢慢浮現的隱藏效果)
+// ==========================================
+// 200~300:每+20親密度,命中率+2%;命中率如果已經滿了,溢出的部分轉換成會心一擊率
+// 350:HP歸零時,有機率留下1HP
+// 400:HP歸零時,有機率留下1%HP(取代350的效果,不會疊加)
+function getBondHiddenAccBonus(attacker, ctx){
+    const bond = (party.includes(attacker)) ? (attacker.bond || 0) : 0;
+    if (bond < 200) return 0;
+    const steps = Math.min(5, Math.floor((bond - 200) / 20)); // 200~300,最多5階
+    const bonusPct = steps * 2;
+    const roomLeft = Math.max(0, 100 - ctx.accuracy);
+    const applied = Math.min(bonusPct, roomLeft);
+    ctx.accuracy += applied;
+    return (bonusPct - applied) / 100; // 溢出的部分,回傳給calculateDamage轉成會心一擊率
+}
+
+// HP歸零判定時統一呼叫這個函式,而不是直接 Math.max(0, mon.hp - dmg)
+// 只有玩家自己的隊伍怪物才有親密度保命效果,野生/訓練家的怪物不受影響
+function applyBondSurvival(mon, incomingDmg){
+    const wouldFaint = mon.hp > 0 && (mon.hp - incomingDmg) <= 0;
+    if (wouldFaint && party.includes(mon)) {
+        const bond = mon.bond || 0;
+        if (bond >= 400 && Math.random() < 0.20) {
+            return Math.max(1, Math.round(mon.maxHp * 0.01));
+        }
+        if (bond >= 350 && Math.random() < 0.15) {
+            return 1;
+        }
+    }
+    return Math.max(0, mon.hp - incomingDmg);
+}
+
 function checkHit(attacker, move, defender) {
     // 1. 取得基礎命中率 (優先讀取 move.acc，若無則預設為必中 1.0)
     let accuracy = move.acc !== undefined ? move.acc : 1.0;
@@ -346,8 +408,21 @@ function checkHit(attacker, move, defender) {
         ctx.accuracy -= attacker.accDebuff;
     }
 
+    // 7.5 隱藏親密度命中率加成(溢出轉會心一擊率,暫存在攻擊方身上給calculateDamage讀取)
+    attacker._bondCritBonus = getBondHiddenAccBonus(attacker, ctx);
+
     // 8. 最終判定：將百分比 (例如 75) 轉回小數 (0.75)，確保鎖在 0~1 之間
-    const finalAccuracy = Math.max(0, Math.min(1.0, ctx.accuracy / 100));
+    let finalAccuracy = Math.max(0, Math.min(1.0, ctx.accuracy / 100));
+    if (MonsterUtil.species(attacker).passive === 'unyielding') finalAccuracy = Math.max(0.2, finalAccuracy);
+
+    // 🌟 羈絆爆發·迴避:防禦方如果有蓄積的迴避機率,優先判定(用過就清除,只生效一次)
+    if (defender.evadeNextChance) {
+        const dodge = Math.random() < defender.evadeNextChance;
+        defender.evadeNextChance = 0;
+        if (dodge) {
+            return { hit: false, accuracy: finalAccuracy, messages: [`💨 ${MonsterUtil.species(defender).name} 靠著羈絆的力量迴避了攻擊！`] };
+        }
+    }
     
     // 🎲 產生 0.0 ~ 1.0 的亂數，小於等於最終命中率即為命中
     const roll = Math.random();
@@ -361,25 +436,6 @@ function checkHit(attacker, move, defender) {
 }
 
 // ⚠️ 向下相容處理：讓原本呼叫 effectiveAcc 的地方直接轉接給 checkHit
-function effectiveAcc(attacker, move, defender) {
-    // 因為原本 effectiveAcc 是回傳一個機率數字，我們借用 checkHit 的計算結果
-    // 注意：原本是 Math.random() > effectiveAcc，代表 effectiveAcc 越高越容易 miss (這邏輯是反的)
-    // 但因為你已經發現問題，我們這裡直接回傳「真正的命中率小數」，並讓外部用正確的方式判定。
-    
-    // 在這裡我們先直接回傳最終的命中率 (0.0 ~ 1.0)
-    let baseAcc = move.acc !== undefined ? move.acc : 1.0;
-    let finalAcc = baseAcc * 100;
-    
-    // 天氣
-    if (currentWeather && currentWeather.id === 'fog') finalAcc -= 20;
-    // 裝備
-    const atkHeld = typeof heldItemDef === 'function' ? heldItemDef(attacker) : null;
-    if (atkHeld && atkHeld.accBoost) finalAcc += (atkHeld.accBoost * 100);
-    // Debuff
-    if (attacker.accDebuff) finalAcc -= attacker.accDebuff;
-    
-    return Math.max(0, Math.min(1.0, finalAcc / 100));
-}
 // ==========================================
 // 🌟 觸發主函式 (提供給 Battle 系統呼叫)
 // ==========================================
@@ -493,11 +549,13 @@ function damageCalc(attacker, move, defender) {
         move: move,
         moveType: move.type,
         weather: currentWeather,
-        critRate: 0.08, // 基礎爆擊率 8%
+        critRate: 0.08 + (attacker._bondCritBonus || 0) + (attacker.critBoostNext || 0), // 基礎爆擊率 8% + 隱藏親密度溢出加成 + 羈絆爆發·會心
         isCritical: false,
         damage: 0,
         multiplier: 1 
     };
+    attacker._bondCritBonus = 0; // 用過就清掉,避免累積到下一次攻擊
+    attacker.critBoostNext = 0;
 
     // 🌤️ 3. 天氣加成
     let weatherAtkMult = 1;
@@ -541,8 +599,13 @@ function damageCalc(attacker, move, defender) {
         if (party.includes(defender)) resonanceDefMult = calculatePartyResonance().defMult;
     }
     // 🗡️ 4. 基礎攻防計算 (包含能力階級、燒傷、威嚇層數、共鳴加成)
-    let atkStat = attacker.atk * (attacker.atkMult || 1) * weatherAtkMult * intimidateMultA * resonanceAtkMult;
-    let defStat = defender.def * (defender.defMult || 1) * weatherDefMult * resonanceDefMult;
+    let atkMultValue = attacker.atkMult || 1;
+    if (MonsterUtil.species(attacker).passive === 'unyielding') atkMultValue = Math.max(0.4, atkMultValue);
+    let defMultValue = defender.defMult || 1;
+    if (MonsterUtil.species(defender).passive === 'unyielding') defMultValue = Math.max(0.4, defMultValue);
+
+    let atkStat = attacker.atk * atkMultValue * weatherAtkMult * intimidateMultA * resonanceAtkMult;
+    let defStat = defender.def * defMultValue * weatherDefMult * resonanceDefMult;
     if (attacker.status === 'burn') atkStat *= 0.5; // 燒傷攻擊減半
 
     // 🎒 裝備加成
@@ -602,6 +665,10 @@ function damageCalc(attacker, move, defender) {
     }
 
     // 🎯 7. 屬性剋制與 STAB (同屬性加成)
+    // 🌟 adaptive 模式:動態變成「剋制對方屬性」的類型;對方是無屬性的話,改用自己的屬性
+    if (move.typeMode === 'adaptive') {
+        ctx.moveType = getCounterType(defType) || atkType;
+    }
     const mult = typeMultiplier(ctx.moveType, defType);
     ctx.multiplier = mult;
     ctx.damage *= mult;

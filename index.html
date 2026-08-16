@@ -91,6 +91,12 @@
     <div class="closeHint">按 <kbd>Esc</kbd> 離開</div>
   </div>
 
+  <div id="helpOverlay" class="overlay">
+    <div class="panelTitle">▌ 說明 ▌</div>
+    <div id="helpContent"></div>
+    <div class="closeHint">按 <kbd>Esc</kbd> 離開</div>
+  </div>
+
   <div id="bagOverlay" class="overlay">
     <div class="panelTitle">▌ 背包 (E) ▌</div>
     <div id="bagList"></div>
@@ -135,7 +141,11 @@
   <div id="saveScreen" class="overlay" style="display:none; flex-direction:column; background:#0b0b1a; align-items:center; justify-content:center; gap:12px; text-align:center;">
     <h2 style="color:var(--accent);margin:0;font-size:20px;">選擇存檔</h2>
     <p style="color:#9aa5ce;font-size:12px;max-width:280px;margin:0;">最多可同時保留3組獨立的遊戲進度</p>
-    <div id="slotList" style="display:flex;flex-direction:column;gap:10px;width:270px;"></div>
+    <div style="background:var(--panel); border:1px solid #2a2a4a; border-radius:8px; padding:8px 12px; max-width:min(94vw,640px); font-size:11px; color:#9aa5ce; text-align:left; line-height:1.6;">
+      💾 <b style="color:#fff;">手動存檔</b>:進入遊戲後隨時按 <kbd>M</kbd> 可以立即存檔,不用等待自動存檔時機。<br>
+      📤 <b style="color:#fff;">匯出目前進度</b>:把存檔轉換成一串文字代碼,可以複製起來,帶到別的裝置或瀏覽器貼上匯入,接續遊玩。
+    </div>
+    <div id="slotList" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:min(94vw,640px);"></div>
   </div>
 
   <div id="exportImportOverlay" class="overlay">
@@ -177,7 +187,7 @@
     🎮 <b>操作</b>：移動 <kbd>WASD</kbd> / <kbd>方向鍵</kbd> ｜ 確認 <kbd>F</kbd> ｜ 跑步 <kbd>G</kbd> ｜ 取消/返回 <kbd>ESC</kbd>
   </div>
   <div style="margin-bottom: 6px;">
-    🎒 <b>介面</b>：隊伍狀態 <kbd>B</kbd> ｜ 怪物圖鑑 <kbd>C</kbd> ｜ 任務 <kbd>Q</kbd> ｜ 背包 <kbd>E</kbd> ｜ 屬性圖 <kbd>N</kbd> ｜ 疾風傳送 <kbd>T</kbd>
+    🎒 <b>介面</b>：隊伍狀態 <kbd>B</kbd> ｜ 怪物圖鑑 <kbd>C</kbd> ｜ 任務 <kbd>Q</kbd> ｜ 背包 <kbd>E</kbd> ｜ 屬性圖 <kbd>N</kbd> ｜ 疾風傳送 <kbd>T</kbd> ｜ 說明 <kbd>V</kbd>
   </div>
   <div style="color:#b3b9d6; font-size:13px;">
     🗺️ <b>地圖</b>：草叢=隨機遇敵 ・ 粉紅磚=怪物中心 ・ 黃色磚=商店 ・ 彩色方塊=訓練家 ・ 旋渦=傳送 ・ 紫色磚=封印門
@@ -192,7 +202,8 @@
 <!-- 找到這行並替換 -->
 <button class="dpadBtn" id="dpadF" style="grid-area:center; font-size:12px;">ESC</button>  </div>
   <div id="quickBtns">
-    <button class="quickBtn" id="quickG" style="grid-column: span 3; border-color:var(--gold); color:var(--gold);">🚶 走(G)</button>
+    <button class="quickBtn" id="quickG" style="grid-column: span 2; border-color:var(--gold); color:var(--gold);">🚶 走(G)</button>
+    <button class="quickBtn" id="quickV" style="border-color:#8e44ad; color:#c9a4ff;">📖 說明(V)</button>
     <button class="quickBtn" id="quickB">隊伍(B)</button>
     <button class="quickBtn" id="quickC">圖鑑(C)</button>
     <button class="quickBtn" id="quickQ">任務(Q)</button>

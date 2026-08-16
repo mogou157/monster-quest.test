@@ -101,62 +101,6 @@ swapList.style.display = 'grid';
 // 綁定主畫面按鈕
 document.getElementById('btnParty').onclick = () => openBattleSwapUI(false);
 // ==========================================
-// 🎯 統一版命中率計算系統 (輸出 0.0 ~ 1.0 的小數)
-// ==========================================
-// ==========================================
-// 🎯 統一版命中率計算與判定系統 (直接回傳 true/false)
-// ==========================================
-function checkHit(attacker, move, defender) {
-    // 1. 取得基礎命中率 (防呆：同時支援 move.acc 與 move.accuracy)
-    let baseAcc = 1.0; // 預設必中
-    if (move.acc !== undefined) {
-        baseAcc = move.acc > 1 ? move.acc / 100 : move.acc;
-    } else if (move.accuracy !== undefined) {
-        baseAcc = move.accuracy > 1 ? move.accuracy / 100 : move.accuracy;
-    }
-
-    if (move.alwaysHit) return true; // 必中招式直接回傳 true
-
-    // 2. 建立命中 Context，將小數轉為整數百分比 (0~100) 方便特性做加減
-    const ctx = {
-        attacker: attacker,
-        defender: defender,
-        move: move,
-        moveType: move.type,
-        weather: currentWeather,
-        accuracy: baseAcc * 100, // 轉成例如 95
-        guaranteedHit: false
-    };
-
-    // 3. 觸發特性加成 (例如：發光、鎖定、強光等)
-    if (typeof runPassiveEvent === 'function') {
-        runPassiveEvent('beforeHitCheck', attacker, defender, ctx);
-        runPassiveEvent('beforeHitCheck', defender, attacker, ctx);
-    }
-
-    if (ctx.guaranteedHit) return true;
-
-    // 4. 處理天氣影響 (例如濃霧 -20% 命中)
-    if (currentWeather && currentWeather.id === 'fog') {
-        ctx.accuracy -= 20;
-    }
-
-    // 5. 處理裝備影響 (例如精準透鏡)
-    const atkHeld = typeof heldItemDef === 'function' ? heldItemDef(attacker) : null;
-    if (atkHeld && atkHeld.accBoost) {
-        ctx.accuracy += (atkHeld.accBoost * 100);
-    }
-
-    // 6. 處理動態 Debuff (例如被潑沙降命中)
-    if (attacker.accDebuff) {
-        ctx.accuracy -= attacker.accDebuff;
-    }
-
-    // 7. 將最終的百分比轉回小數 (0.0~1.0)，並直接進行亂數判定
-    const finalAcc = Math.max(0, Math.min(1.0, ctx.accuracy / 100));
-    return Math.random() <= finalAcc;
-}
-// ==========================================
 // 🗺️ 地圖與移動管理器 (Map Manager)
 // ==========================================
 let party = GameState.party.active;
@@ -177,6 +121,16 @@ const ELEMENT_META = {
   light:{name:'光',color:'#fff6c9'}, dark:{name:'暗',color:'#8a5cff'},
 };
 
+// 找出「剋制指定屬性」的屬性是誰(adaptiveStrike招式用):無屬性回傳null,呼叫端會改用自己的屬性
+function getCounterType(defType){
+  if(defType === 'dark') return 'light';
+  if(defType === 'light') return 'dark';
+  if(CYCLE.includes(defType)){
+    const di = CYCLE.indexOf(defType);
+    return CYCLE[(di - 1 + CYCLE.length) % CYCLE.length];
+  }
+  return null;
+}
 function typeMultiplier(atk, def){
   if(atk==='none'||def==='none') return 1.0;
   if(atk==='light'&&def==='dark') return 1.5;
@@ -348,6 +302,9 @@ const PASSIVES = {
   // === 🧬 融合限定特性 ===
   mimic:          { name:'技能模仿', desc:'登場時暫時變成與對方相同的屬性(戰鬥結束後恢復)', trigger:'onEntry' },
   evasive:        { name:'高速迴避', desc:'有30%機率讓對方的攻擊完全落空', trigger:'beforeHitCheck' },
+
+  // === 🛡️ 極限抵抗特性 ===
+  unyielding:     { name:'不屈韌性', desc:'無論被降低幾次能力,攻擊力最低仍保有40%、防禦力最低仍保有40%、命中率最低仍保有20%,不會被削弱到更低', trigger:'passive' },
 };
 // ==========================================
 // 🦖 怪物資料操作中心 (Monster Utility)
