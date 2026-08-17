@@ -775,14 +775,7 @@ function startBossBattle(npc){
 }
 
 
-// 共用的顯示/隱藏戰鬥控制區函式(取代原本到處重複的 DOM 操作)
-function hideBattleControls(){
-  document.getElementById('actionGrid').style.display='none';
-  document.getElementById('moveList').style.display='none';
-  document.getElementById('swapList').style.display='none';
-  document.getElementById('controlsBlocker').style.display='flex';
-  focusList=[];
-}
+// 共用的顯示/隱藏戰鬥控制區函式,完整版定義在 01-core-state.js(支援自訂訊息文字)
 // 🌟 記錄主選單與技能的行動
 let lastMainActionIndex = 0;
 document.getElementById('btnFight').addEventListener('click', () => lastMainActionIndex = 0);
@@ -790,13 +783,6 @@ document.getElementById('btnCatch').addEventListener('click', () => lastMainActi
 document.getElementById('btnParty').addEventListener('click', () => lastMainActionIndex = 2);
 document.getElementById('btnRun').addEventListener('click', () => lastMainActionIndex = 3);
 
-function hideBattleControls(){
-  document.getElementById('actionGrid').style.display='none';
-  document.getElementById('moveList').style.display='none';
-  document.getElementById('swapList').style.display='none';
-  document.getElementById('controlsBlocker').style.display='flex';
-  focusList=[];
-}
 // ---------- 顯示戰鬥主選單 ----------
 function showBattleControls() {
     document.getElementById('actionGrid').style.display = 'grid';

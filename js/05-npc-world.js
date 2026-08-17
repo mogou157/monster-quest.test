@@ -1162,6 +1162,15 @@ function openShop(){
   overlayOpen='shop';
   ensureDailyFresh();
   dailyProgress.shopVisits++;
+
+  // 🌟 融合機解鎖後,第一次進商店跳出提示(用notifiedChapters同一套機制,避免重複通知)
+  GameState.world.notifiedChapters = GameState.world.notifiedChapters || [];
+  const fusionUnlocked = QUESTS.filter(q => q.chapter === 4).every(q => q.check());
+  if (fusionUnlocked && !GameState.world.notifiedChapters.includes('fusion_shop')) {
+    GameState.world.notifiedChapters.push('fusion_shop');
+    toast('🧬 咦?店裡角落多了一台奇怪的機器...「融合機」開放使用了!', 4000);
+  }
+
   renderShopScreen();
   document.getElementById('shopOverlay').style.display='flex';
 }

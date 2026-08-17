@@ -238,13 +238,13 @@ const PASSIVES = {
   shieldBash:     { name:'盾擊', desc:'傷害額外增加40%防禦力數值', trigger:'beforeAttack' },
   firstStrike:    { name:'奇襲', desc:'登場後首次造成的傷害x1.7', trigger:'beforeAttack' },
   keenEye:        { name:'銳利', desc:'會心一擊機率提高20%', trigger:'beforeAttack' },
-  swift:          { name:'敏捷', desc:'招式命中率提升15%', trigger:'beforeAttack' },
+  swift:          { name:'敏捷', desc:'招式命中率提升15%', trigger:'beforeHitCheck' },
   underdogAtk:    { name:'下克上・攻', desc:'等級低於敵方時,攻擊力提升40%', trigger:'beforeAttack' },
   dreamEater:     { name:'食夢', desc:'對方睡眠時,自己的攻擊力提升70%', trigger:'beforeAttack' },
   statusExploit:  { name:'趁虛而入', desc:'對方有異常狀態時,自己的攻擊力提升25%', trigger:'beforeAttack' },
-  statusAccBoost: { name:'鎖定', desc:'對方有異常狀態時,自己的命中率提升40%', trigger:'beforeAttack' },
-  steady:         { name:'沉穩', desc:'HP低於50%時,命中率提升20%', trigger:'beforeAttack' },
-  illuminate:     { name:'發光', desc:'在濃霧天氣時,命中率不會下降', trigger:'beforeAttack' },
+  statusAccBoost: { name:'鎖定', desc:'對方有異常狀態時,自己的命中率提升40%', trigger:'beforeHitCheck' },
+  steady:         { name:'沉穩', desc:'HP低於50%時,命中率提升20%', trigger:'beforeHitCheck' },
+  illuminate:     { name:'發光', desc:'在濃霧天氣時,命中率不會下降', trigger:'beforeHitCheck' },
 
   // === ☀️ 第三類：天氣環境連動 (攻方 beforeAttack / 防方 onDamage) ===
   moisture:       { name:'濕氣', desc:'陰天時,造成的傷害x1.2', trigger:'beforeAttack' },
@@ -268,7 +268,7 @@ const PASSIVES = {
   underdogDef:    { name:'下克上・防', desc:'等級低於敵方時,防禦力提升40%', trigger:'onDamage' },
   statusDefBoost: { name:'趁虛防禦', desc:'對方有異常狀態時,自己的防禦力提升25%', trigger:'onDamage' },
   statusResilience: { name:'帶病抗性', desc:'自身陷入異常狀態時,受到的傷害降低40%', trigger:'onDamage' },
-  dazzling:       { name:'強光', desc:'降低敵方15%的命中率', trigger:'onDamage' }, // 當敵方攻擊自己時觸發判定
+  dazzling:       { name:'強光', desc:'降低敵方15%的命中率', trigger:'beforeHitCheck' }, // 當敵方攻擊自己時觸發判定
 
   // === 🎯 攻擊後觸發與動態疊加 (afterAttack) ===
   hypnoticTouch:  { name:'催眠觸覺', desc:'攻擊命中時25%機率讓對方睡著(不限招式屬性)', trigger:'afterAttack' },
@@ -416,38 +416,6 @@ function runPassiveEvent(eventName, mon, enemy, ctx = {}) {
 
 // ⬇️ 下方緊接著應該要是你設定的各種特性邏輯
 // 例如：PassiveEvents.onEntry.intimidate = function(...) { ... }
-// ==========================================
-// 🌟 核心事件調度器 (支援 Context Object 與 Payload)
-// ==========================================
-function runPassiveEvent(eventName, mon, enemy, ctx = {}) {
-    if (!mon) return { messages: [] };
-
-    const passive = MonsterUtil.passive(mon);
-    if (!passive) return { messages: [] };
-
-    const table = PassiveEvents[eventName];
-    if (!table) return { messages: [] };
-
-    const handler = table[passive];
-    if (!handler) return { messages: [] };
-
-    // 將 ctx 傳入特性中，讓特性可以自由讀取與修改裡面的數值
-    const result = handler(mon, enemy, ctx);
-
-    if (!result) return { messages: [] };
-
-    if (typeof result === 'string') {
-        return { messages: [result] };
-    }
-
-    return {
-        messages: result.messages || [],
-        animation: result.animation || null,
-        sound: result.sound || null,
-        weather: result.weather || null,
-        ...result 
-    };
-}
 // ==========================================
 // ⚡ 1. 登場時 (onEntry)
 // ==========================================

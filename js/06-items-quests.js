@@ -350,6 +350,7 @@ const QUESTS = [
   { id: 'trial_thundergod', chapter: 99, name: '⚡ 天雷的化身', desc: '收集四個充能核心啟動聖殿，擊敗天雷聖鳥。', check: () => trainersDefeated.has('boss_thundergod'), isClaimed: () => dex.has('93'), onClaim: () => { const dest = addToPartyOrStorage(makeMonster('93', 40)); dex.add('93'); seenDex.add('93'); updateHud(); SaveManager.save(); toast(dest === 'party' ? '⚡ 天雷聖鳥加入了隊伍！' : '⚡ 天雷聖鳥已送往倉庫！'); } },
   { id: 'trial_icegod', chapter: 99, name: '❄️ 冰河的霸主', desc: '成為冰系大師或尋求天時地利，擊敗冰河猛瑪。', check: () => trainersDefeated.has('boss_icegod'), isClaimed: () => dex.has('96'), onClaim: () => { const dest = addToPartyOrStorage(makeMonster('96', 40)); dex.add('96'); seenDex.add('96'); updateHud(); SaveManager.save(); toast(dest === 'party' ? '❄️ 冰河猛瑪加入了隊伍！' : '❄️ 冰河猛瑪已送往倉庫！'); } },
   { id: 'trial_voidgear', chapter: 99, name: '⚙️ 虛空的兵器', desc: '抵達隱藏迷宮的終點，擊敗並控制虛空神機。', check: () => trainersDefeated.has('boss_voidgear'), isClaimed: () => dex.has('95'), onClaim: () => { const dest = addToPartyOrStorage(makeMonster('95', 45)); dex.add('95'); seenDex.add('95'); updateHud(); SaveManager.save(); toast(dest === 'party' ? '⚙️ 虛空神機加入了隊伍！' : '⚙️ 虛空神機已送往倉庫！'); } },
+  { id: 'explore_tranquil', chapter: 99, name: '🏝️ 世外之島', desc: '傳說在世界道路的盡頭，藏著一座不為人知的寧靜島嶼...', check: () => visitedMaps.has('map30') },
   { id: 'trial_origindra', chapter: 99, name: '👑 始源的霸主', desc: '完成所有考驗開啟封印之門，擊敗始源龍。', check: () => trainersDefeated.has('boss_origindra'), isClaimed: () => dex.has('94'), onClaim: () => { const dest = addToPartyOrStorage(makeMonster('94', 50)); dex.add('94'); seenDex.add('94'); updateHud(); SaveManager.save(); toast(dest === 'party' ? '👑 始源龍加入了隊伍！' : '👑 始源龍已送往倉庫！'); } }
 ];
 // 把兩章的名稱合併在同一個物件裡 (注意第二章的數字要用 2)
@@ -1784,14 +1785,62 @@ function renderHelpTutorial(content){
   steps.forEach(([title, desc])=>{
     const card = document.createElement('div');
     card.style.cssText = 'background:var(--panel); border-radius:6px; padding:8px 10px; margin-bottom:8px; border:1px solid #2a2a4a; font-size:12px;';
-    card.innerHTML = `<b>${title}</b><div style="color:#9aa5ce; margin-top:4px; line-height:1.5;">${desc}</div>`;
+    card.innerHTML = `<b>${title}</b><div style="color:#FFFECC; margin-top:4px; line-height:1.5;">${desc}</div>`;
     content.appendChild(card);
   });
 }
 
+// 依照招式的各種效果欄位,組出一段白話的效果說明
+function describeMoveEffect(move){
+  const parts = [];
+  const statName = s => s==='atk' ? '攻擊力' : (s==='def' ? '防禦力' : s);
+  const pct = n => `${Math.round(n*100)}%`;
+
+  if (move.buffStat) parts.push(`使自己的${statName(move.buffStat)}提升${pct(move.buffAmount)}`);
+  if (move.selfDebuffStat) parts.push(`但自己的${statName(move.selfDebuffStat)}下降${pct(move.selfDebuffAmount)}`);
+  if (move.debuffStat) parts.push(`使對方的${statName(move.debuffStat)}下降${pct(move.debuffAmount)}`);
+  if (move.debuffAcc) parts.push(`降低對方命中率${move.debuffAcc}點`);
+  if (move.statusOnly) parts.push(`使對方陷入${STATUS_META[move.statusOnly]?STATUS_META[move.statusOnly].name:move.statusOnly}狀態${move.statusChance?`(機率${pct(move.statusChance)})`:''}`);
+  if (move.cureStatus) parts.push('解除自己的異常狀態');
+  if (move.healWeatherType || move.healWeather) parts.push('恢復HP(晴天/雨天/雪天等對應天氣下效果更好)');
+  if (move.healPct) parts.push(`恢復${pct(move.healPct)}HP`);
+  if (move.selfSleepHeal) parts.push('進入睡眠並大量恢復HP');
+  if (move.drainPct) parts.push(`造成傷害的${pct(move.drainPct)}會轉換成自己的HP`);
+  if (move.applyLeech) parts.push(`使對方中「寄生種子」,之後${move.applyLeech.turns}回合每回合流失${pct(move.applyLeech.pct)}HP並轉移給自己`);
+  if (move.applyHoT) parts.push(`接下來${move.applyHoT.turns}回合,每回合恢復${pct(move.applyHoT.pct)}HP`);
+  if (move.recoilPct) parts.push(`自己也會受到造成傷害${pct(move.recoilPct)}的反作用力傷害`);
+  if (move.sacrificePct) parts.push(`消耗自己${pct(move.sacrificePct)}的HP來換取效果`);
+  if (move.setWeather) parts.push(`把天氣變成「${WEATHERS.find(w=>w.id===move.setWeather)?.name||move.setWeather}」`);
+  if (move.disableItem) parts.push('查封對方的攜帶裝備');
+  if (move.chanceImmunity) parts.push(`有${pct(move.chanceImmunity)}機率讓自己進入絕對防禦(完全免疫這回合的傷害)`);
+  if (move.rechargeNextTurn) parts.push('使出後下一回合必須休息,無法行動');
+  if (move.needsCharge) parts.push('第一回合蓄力,第二回合才會真正發動攻擊');
+  if (move.leaveOneHp) parts.push('如果會將對方擊倒,改為留下1點HP');
+  if (move.isEscape) parts.push('強制換上隊伍中的其他怪物(對訓練家戰無效)');
+  if (move.counterPct) parts.push(`進入反擊姿態,對方下次造成傷害的${pct(move.counterPct)}會反彈回去`);
+  if (move.damageReduction) parts.push(`接下來受到的傷害降低${pct(move.damageReduction)}`);
+  if (move.accuracyStack) parts.push('命中率會隨著連續使用逐漸疊加提升');
+  if (move.firstTurnAcc) parts.push(`本回合尚未攻擊過的話必定命中`);
+  if (move.tauntTurns) parts.push(`使對方接下來${move.tauntTurns}回合只能使用攻擊招式`);
+  if (move.nextAttackMultiplier) parts.push(`使自己下一次攻擊傷害提升為${move.nextAttackMultiplier}倍`);
+  if (move.swapStats) parts.push('與對方互換能力等級變化');
+  if (move.reverseStatsTarget) parts.push('把對方的能力提升/下降狀態反轉');
+  if (move.swapBuffStat) parts.push(`強制換人,並為即將上場的隊友提升${statName(move.swapBuffStat)}${pct(move.swapBuffAmount)}`);
+  if (move.swapCureStatus) parts.push('強制換人,並為即將上場的隊友解除異常狀態');
+  if (move.forceSwapAfter) parts.push('攻擊命中後強制換上其他隊友');
+  if (move.bondBurstEffect) parts.push('效果會隨自己的親密度變得更強(親密度需超過160才能學會)');
+  if (move.reqResonanceCat) parts.push(`需要隊伍中「${RESONANCE_CATEGORIES[move.reqResonanceCat]?RESONANCE_CATEGORIES[move.reqResonanceCat].name:move.reqResonanceCat}」共鳴發動中才能使出`);
+  if (move.setType) parts.push(`使自己暫時變成${ELEMENT_META[move.setType]?ELEMENT_META[move.setType].name:move.setType}屬性`);
+  if (move.typeMode === 'adaptive') parts.push('自動變成剋制對方的屬性;對方無屬性時改用自己的屬性');
+  if (move.typeMode === 'random') parts.push('每次使用屬性隨機決定');
+  if (move.maxUses) parts.push(`每場戰鬥最多使用${move.maxUses}次`);
+
+  return parts.length ? parts.join('、') : (move.power ? '純粹的傷害招式,沒有附加效果' : '');
+}
+
 function renderHelpMoves(content){
   const tip = document.createElement('p');
-  tip.style.cssText = 'font-size:11px; color:#9aa5ce; margin-bottom:8px;';
+  tip.style.cssText = 'font-size:11px; color:#FFFECC; margin-bottom:8px;';
   tip.textContent = '威力是相對倍率(1.0倍約等同基礎攻擊力),不是實際傷害數字;命中是招式本身的基礎命中率。';
   content.appendChild(tip);
 
@@ -1800,17 +1849,19 @@ function renderHelpMoves(content){
       : (!move.power ? '變化技(無傷害)' : `威力${Math.round(move.power*100)}%`);
     const accText = move.alwaysHit ? '必中' : (move.acc ? `命中${Math.round((move.acc<=1?move.acc*100:move.acc))}%` : '必中');
     const typeText = move.type && move.type !== 'none' && ELEMENT_META[move.type] ? ELEMENT_META[move.type].name : (move.typeMode==='self' ? '(依自身屬性)' : (move.typeMode==='adaptive' ? '(自動剋制對方)' : (move.typeMode==='random' ? '(隨機屬性)' : '無屬性')));
+    const effectText = describeMoveEffect(move);
 
     const card = document.createElement('div');
     card.style.cssText = 'background:var(--panel); border-radius:6px; padding:6px 10px; margin-bottom:5px; border:1px solid #2a2a4a; font-size:12px;';
-    card.innerHTML = `<b>${move.name}</b> <span style="color:#9aa5ce; font-size:10px;">${typeText} ・ ${powerText} ・ ${accText}</span>`;
+    card.innerHTML = `<b>${move.name}</b> <span style="color:#FFFECC; font-size:10px;">${typeText} ・ ${powerText} ・ ${accText}</span>` +
+      (effectText ? `<div style="color:#c9c9c9; font-size:11px; margin-top:3px; line-height:1.4;">${effectText}</div>` : '');
     content.appendChild(card);
   });
 }
 
 function renderHelpResonance(content){
   const intro = document.createElement('p');
-  intro.style.cssText = 'font-size:11px; color:#9aa5ce; margin-bottom:8px;';
+  intro.style.cssText = 'font-size:11px; color:#FFFECC; margin-bottom:8px;';
   intro.textContent = '隊伍裡符合條件的怪物越多,共鳴效果越強(有上限),戰鬥開場會顯示目前發動中的共鳴。';
   content.appendChild(intro);
 
@@ -1820,7 +1871,7 @@ function renderHelpResonance(content){
     if(meta.defPerExtra>0) effectParts.push(`每多1隻+${Math.round(meta.defPerExtra*100)}%防禦力(上限+${Math.round(meta.maxBonus*100)}%)`);
     const card = document.createElement('div');
     card.style.cssText = 'background:var(--panel); border-radius:6px; padding:8px 10px; margin-bottom:6px; border:1px solid #2a2a4a; font-size:12px;';
-    card.innerHTML = `<b>${meta.icon} ${meta.name}</b><div style="color:#9aa5ce; margin-top:2px;">隊伍中2隻以上外型屬於此類的怪物即可發動。${effectParts.join('、')}</div>`;
+    card.innerHTML = `<b>${meta.icon} ${meta.name}</b><div style="color:#FFFECC; margin-top:2px;">隊伍中2隻以上外型屬於此類的怪物即可發動。${effectParts.join('、')}</div>`;
     content.appendChild(card);
   });
 
@@ -1833,7 +1884,7 @@ function renderHelpResonance(content){
   extra.forEach(([title, desc])=>{
     const card = document.createElement('div');
     card.style.cssText = 'background:var(--panel); border-radius:6px; padding:8px 10px; margin-bottom:6px; border:1px solid #2a2a4a; font-size:12px;';
-    card.innerHTML = `<b>${title}</b><div style="color:#9aa5ce; margin-top:2px;">${desc}</div>`;
+    card.innerHTML = `<b>${title}</b><div style="color:#FFFECC; margin-top:2px;">${desc}</div>`;
     content.appendChild(card);
   });
 }
@@ -1842,7 +1893,7 @@ function renderHelpSettings(content){
   const card = document.createElement('div');
   card.style.cssText = 'background:var(--panel); border-radius:6px; padding:10px; margin-bottom:8px; border:1px solid #2a2a4a;';
   card.innerHTML = `
-    <label style="font-size:12px; color:#9aa5ce; display:block; margin-bottom:6px;">訓練家名稱</label>
+    <label style="font-size:12px; color:#FFFECC; display:block; margin-bottom:6px;">訓練家名稱</label>
     <input id="playerNameInput" type="text" maxlength="10" value="${GameState.player.name || '訓練家'}"
       style="width:100%; box-sizing:border-box; padding:8px; border-radius:6px; border:1px solid #2a2a4a; background:#0b0b1a; color:#fff; font-size:14px;">
   `;

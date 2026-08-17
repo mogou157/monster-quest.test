@@ -275,6 +275,7 @@ function resolveMove(moveId, mon){
     setCharge: def.setCharge, revengePower: def.revengePower,
     lowHpPower: def.lowHpPower, tauntTurns: def.tauntTurns,
     applyLeech: def.applyLeech, sacrificePct: def.sacrificePct,
+    applyHoT: def.applyHoT,
     nextAttackMultiplier: def.nextAttackMultiplier, cureStatus: def.cureStatus,
     swapStats: def.swapStats,
     // 👇 🌟 這次新增的招式效果欄位
