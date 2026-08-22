@@ -87,6 +87,7 @@ function describeResonance(){
   if(diversity) parts.push(`🌈${diversity.name}(${diversity.typeCount}屬性)`);
 
   if(parts.length === 0) return '';
+  setTimeout(()=> SoundManager.resonance(), 400); // 延遲一點播放,跟戰鬥開場音錯開
   return `\n✨ 隊伍共鳴發動:${parts.join('、')}!`;
 }
 
@@ -710,6 +711,7 @@ function startWildBattle() {
 
     inBattle = true;
     GameState.party.activeIndex = party.findIndex(m => m.hp > 0);
+    SoundManager.encounterWild();
     checkIceResonanceWeather();
     document.getElementById('logBox').innerHTML = `遇到了野生的 ${sp.name}!${describeResonance()}`;
     renderBattle();
@@ -737,6 +739,7 @@ trainerTeamQueue = trainer.team.map(tMon => {
   seenDex.add(wild.speciesId);
   document.getElementById('btnCatch').disabled = true;
   document.getElementById('btnRun').disabled = true;
+  SoundManager.encounterTrainer();
   checkIceResonanceWeather();
   enterBattleUI(`${trainer.name}:「來戰鬥吧!」派出了 ${MonsterUtil.species(wild).name}(Lv.${wild.level})!${describeResonance()}`);
   party[GameState.party.activeIndex].hasDealtFirstDamage = false;
@@ -770,6 +773,7 @@ function startBossBattle(npc){
   document.getElementById('btnCatch').disabled = true;
   document.getElementById('btnRun').disabled = true;
   
+  SoundManager.encounterBoss();
   checkIceResonanceWeather();
   enterBattleUI(`強大的 ${MonsterUtil.species(wild).name} 發出了震耳欲聾的咆哮，準備進行戰鬥！${describeResonance()}`);
 }

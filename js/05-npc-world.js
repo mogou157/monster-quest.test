@@ -645,15 +645,21 @@ function moveFocus(dx,dy){
   if(newIdx>=focusList.length) newIdx = focusList.length-1;
   focusIdx = newIdx;
   updateFocusVisual();
+  SoundManager.cursorMove();
 }
 function activateFocus(){
-  if(focusList[focusIdx]) focusList[focusIdx].click();
+  if(focusList[focusIdx]){
+    if(focusList[focusIdx].disabled) SoundManager.invalidAction();
+    else SoundManager.confirm();
+    focusList[focusIdx].click();
+  }
 }
 
 // ---------- 屬性剋制圖 (按 N,任何時候都能看) ----------
 function toggleTypeChart(){
   typeChartOpen = !typeChartOpen;
   document.getElementById('typeChartOverlay').style.display = typeChartOpen ? 'flex':'none';
+  typeChartOpen ? SoundManager.menuOpen() : SoundManager.menuClose();
   if(typeChartOpen) renderTypeChart();
 }
 function renderTypeChart(){
@@ -1133,12 +1139,14 @@ function toggleOverlay(name){
   if(overlayOpen===name){ closeOverlays(); return; }
   closeOverlays();
   overlayOpen=name;
+  SoundManager.menuOpen();
   if(name==='status'){ renderStatusScreen(); document.getElementById('statusOverlay').style.display='flex'; }
   if(name==='dex'){ renderDexScreen(); document.getElementById('dexOverlay').style.display='flex'; }
   if(name==='quest'){ renderQuestScreen(); document.getElementById('questOverlay').style.display='flex'; }
   if(name==='bag'){ renderBagScreen(); document.getElementById('bagOverlay').style.display='flex'; }
 }
 function closeOverlays(){
+  if (overlayOpen) SoundManager.menuClose();
   document.getElementById('statusOverlay').style.display='none';
   document.getElementById('dexOverlay').style.display='none';
   document.getElementById('questOverlay').style.display='none';
@@ -1160,6 +1168,7 @@ document.getElementById('worldMapOverlay').style.display = 'none';
 function openShop(){
   closeOverlays();
   overlayOpen='shop';
+  SoundManager.menuOpen();
   ensureDailyFresh();
   dailyProgress.shopVisits++;
 

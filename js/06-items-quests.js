@@ -698,11 +698,13 @@ function renderShopScreen(){
 // ==========================================
 function openMinigameScreen() {
   if (!QUESTS.filter(q => q.chapter === 6).every(q => q.check())) {
+    SoundManager.invalidAction();
     toast('🔒 幸運遊樂場需要完成第六章全部任務才能開放！');
     return;
   }
   closeOverlays();
   overlayOpen = 'minigame';
+  SoundManager.menuOpen();
   ensureDailyFresh();
   renderMinigameScreen();
   document.getElementById('minigameOverlay').style.display = 'flex';
@@ -1663,6 +1665,7 @@ function performFusion(recipe, useBlueprint){
 function openFusionScreen(){
   closeOverlays();
   overlayOpen = 'fusion';
+  SoundManager.menuOpen();
   renderFusionScreen();
   document.getElementById('fusionOverlay').style.display = 'flex';
 }
@@ -1739,6 +1742,7 @@ let currentHelpTab = 'tutorial';
 function openHelpScreen(){
   closeOverlays();
   overlayOpen = 'help';
+  SoundManager.menuOpen();
   renderHelpScreen();
   document.getElementById('helpOverlay').style.display = 'flex';
 }
@@ -1781,6 +1785,7 @@ function renderHelpTutorial(content){
     ['🔮 共鳴系統', '隊伍裡外型相近、或屬性相近的怪物湊在一起,會發動「共鳴」,提供全隊攻防甚至特殊效果的加成,詳情可以看「共鳴」分頁。'],
     ['🗺️ 探索世界', '世界很大,建議善用疾風傳送(T鍵,需要風屬性怪物)快速往返已經去過的怪物中心。'],
     ['💾 存檔', '按 M 可以隨時手動存檔,最多同時保留 3 組進度,也可以把進度匯出成一串代碼,帶到別的裝置繼續玩。'],
+    ['🔊 音效', '戰鬥與選單操作都有音效提示,如果覺得太吵或太安靜,可以到「說明→設定」分頁調整音量或關閉。'],
   ];
   steps.forEach(([title, desc])=>{
     const card = document.createElement('div');
@@ -1910,4 +1915,33 @@ function renderHelpSettings(content){
     SaveManager.save();
   };
   content.appendChild(saveBtn);
+
+  // 🔊 音效設定
+  const soundCard = document.createElement('div');
+  soundCard.style.cssText = 'background:var(--panel); border-radius:6px; padding:10px; margin-top:10px; border:1px solid #2a2a4a;';
+  soundCard.innerHTML = `
+    <label style="font-size:12px; color:#FFFECC; display:flex; align-items:center; gap:6px; cursor:pointer; margin-bottom:10px;">
+      <input type="checkbox" id="soundEnabledToggle" ${SoundManager.enabled ? 'checked' : ''} style="cursor:pointer;"> 開啟音效
+    </label>
+    <label style="font-size:12px; color:#FFFECC; display:block; margin-bottom:4px;">音量:${Math.round(SoundManager.volume*100)}%</label>
+    <input type="range" id="soundVolumeSlider" min="0" max="100" value="${Math.round(SoundManager.volume*100)}" style="width:100%;">
+  `;
+  content.appendChild(soundCard);
+
+  document.getElementById('soundEnabledToggle').onchange = (e) => {
+    SoundManager.setEnabled(e.target.checked);
+    SoundManager.unlock();
+    if(e.target.checked) SoundManager.confirm();
+    GameState.player.soundEnabled = e.target.checked;
+    SaveManager.save();
+  };
+  document.getElementById('soundVolumeSlider').oninput = (e) => {
+    SoundManager.setVolume(e.target.value/100);
+    soundCard.querySelectorAll('label')[1].textContent = `音量:${e.target.value}%`;
+  };
+  document.getElementById('soundVolumeSlider').onchange = (e) => {
+    SoundManager.unlock(); SoundManager.confirm();
+    GameState.player.soundVolume = SoundManager.volume;
+    SaveManager.save();
+  };
 }

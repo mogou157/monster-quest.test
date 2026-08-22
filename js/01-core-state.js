@@ -3,6 +3,115 @@
 // 此檔案為 script.js 依邏輯區塊拆分而成,執行順序不可更動
 // ============================================================
 
+// ==========================================
+// 🔊 音效系統 (Web Audio API 即時合成,不需要外部音檔)
+// ==========================================
+const SoundManager = {
+  ctx: null,
+  enabled: true,
+  volume: 0.25,
+
+  init(){
+    if (this.ctx) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AC();
+    } catch(e) {
+      this.enabled = false;
+    }
+  },
+  // 瀏覽器規定要有使用者手勢(點擊/按鍵)才能啟動音訊,第一次互動時呼叫這個解鎖
+  unlock(){
+    this.init();
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  setEnabled(v){ this.enabled = v; },
+  setVolume(v){ this.volume = Math.max(0, Math.min(1, v)); },
+
+  // 單一音符:type可選 sine(圓潤)/square(復古方波)/triangle(柔和)/sawtooth(尖銳)
+  tone(freq, duration, {type='square', vol=1, delay=0, attack=0.005} = {}){
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    const t0 = this.ctx.currentTime + delay;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.001, vol*this.volume), t0+attack);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0+duration);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    osc.start(t0); osc.stop(t0+duration+0.02);
+  },
+  // 滑音:頻率從freqStart掃到freqEnd,適合上升/下降的音效
+  sweep(freqStart, freqEnd, duration, {type='sine', vol=1, delay=0} = {}){
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    const t0 = this.ctx.currentTime + delay;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freqStart, t0);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1,freqEnd), t0+duration);
+    gain.gain.setValueAtTime(vol*this.volume, t0);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0+duration);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    osc.start(t0); osc.stop(t0+duration+0.02);
+  },
+  // 白噪音短爆:適合打擊感、落空的「唰」聲
+  noiseBurst(duration, {vol=1, delay=0, filterFreq=2000} = {}){
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    const t0 = this.ctx.currentTime + delay;
+    const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * (1 - i/bufferSize);
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = filterFreq;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol*this.volume, t0);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0+duration);
+    src.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+    src.start(t0);
+  },
+
+  // ---------- ⚔️ 戰鬥音效 ----------
+  encounterWild(){ this.sweep(220, 440, 0.35, {type:'triangle', vol:0.8}); },
+  encounterTrainer(){ this.tone(330,0.12,{type:'square',vol:0.9}); this.tone(440,0.12,{type:'square',vol:0.9,delay:0.13}); this.tone(330,0.18,{type:'square',vol:0.9,delay:0.26}); },
+  encounterBoss(){ this.tone(110,0.4,{type:'sawtooth',vol:0.9}); this.sweep(110,55,0.5,{type:'sawtooth',vol:0.7,delay:0.15}); },
+  attackHit(){ this.tone(180,0.08,{type:'square',vol:0.8}); this.noiseBurst(0.06,{vol:0.5,delay:0.01}); },
+  attackMiss(){ this.sweep(300,150,0.25,{type:'sine',vol:0.5}); },
+  criticalHit(){ this.tone(220,0.06,{type:'square',vol:0.9}); this.tone(330,0.1,{type:'square',vol:0.9,delay:0.06}); },
+  superEffective(){ this.tone(440,0.08,{type:'triangle',vol:0.8}); this.tone(660,0.12,{type:'triangle',vol:0.8,delay:0.08}); },
+  notEffective(){ this.tone(150,0.18,{type:'triangle',vol:0.6}); },
+  statusInflict(){ this.sweep(500,200,0.3,{type:'sawtooth',vol:0.6}); },
+  buffUp(){ this.tone(392,0.07,{type:'triangle',vol:0.7}); this.tone(523,0.1,{type:'triangle',vol:0.7,delay:0.07}); },
+  debuffDown(){ this.tone(392,0.1,{type:'triangle',vol:0.6}); this.tone(294,0.14,{type:'triangle',vol:0.6,delay:0.1}); },
+  faint(){ this.sweep(300,60,0.5,{type:'sine',vol:0.7}); },
+  victory(){ [523,659,784,1047].forEach((f,i)=> this.tone(f,0.16,{type:'triangle',vol:0.8,delay:i*0.12})); },
+  defeat(){ [392,349,294,262].forEach((f,i)=> this.tone(f,0.25,{type:'sine',vol:0.7,delay:i*0.18})); },
+  resonance(){ [880,1108,1318].forEach((f,i)=> this.tone(f,0.12,{type:'sine',vol:0.5,delay:i*0.06})); },
+
+  // ---------- 🖱️ UI 音效 ----------
+  menuOpen(){ this.sweep(400,700,0.12,{type:'sine',vol:0.5}); },
+  menuClose(){ this.sweep(700,400,0.12,{type:'sine',vol:0.4}); },
+  confirm(){ this.tone(600,0.06,{type:'square',vol:0.5}); },
+  cursorMove(){ this.tone(800,0.03,{type:'square',vol:0.25}); },
+  invalidAction(){ this.tone(120,0.15,{type:'sawtooth',vol:0.5}); },
+};
+// 使用者第一次跟畫面互動時,解鎖音訊(瀏覽器安全限制,不能自動播放)
+window.addEventListener('keydown', ()=> SoundManager.unlock(), { once:true });
+window.addEventListener('pointerdown', ()=> SoundManager.unlock(), { once:true });
+
   // ==========================================
 // 💾 瀏覽器存檔相容包 (Polyfill)
 // ==========================================
@@ -91,6 +200,9 @@ const SaveManager = {
             GameState.player = player = data.player || { mapId: data.mapId || 'map1', x: data.pos?.x ?? 2, y: data.pos?.y ?? 2, coins: data.coins ?? 60 };
             GameState.player.totalSteps = data.player?.totalSteps || data.totalSteps || 0;
             GameState.player.totalEarnedCoins = data.player?.totalEarnedCoins || data.totalEarnedCoins || 0;
+            // 🔊 還原音效設定(沒存過的話就用預設值)
+            if (GameState.player.soundEnabled !== undefined) SoundManager.setEnabled(GameState.player.soundEnabled);
+            if (GameState.player.soundVolume !== undefined) SoundManager.setVolume(GameState.player.soundVolume);
             // 👇 🌟 加入圖鑑自動修復邏輯：掃描隊伍與倉庫，確保擁有的怪獸絕對有登錄進圖鑑
             party.forEach(m => { if(m.speciesId) { dex.add(m.speciesId); seenDex.add(m.speciesId); } });
             storageBox.forEach(m => { if(m.speciesId) { dex.add(m.speciesId); seenDex.add(m.speciesId); } });
@@ -332,6 +444,7 @@ const BattleManager = {
                 }
 } else if(!checkHit(p, move, wild).hit){
                   wild.lastMoveMissed = true;
+                SoundManager.attackMiss();
                 if(move.accuracyStack) wild.honeMissCount = (wild.honeMissCount || 0) + 1;
                 
                 let missMsg = prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name},但沒有命中!`;
@@ -352,15 +465,18 @@ const BattleManager = {
                 } else if(move.buffStat && move.selfDebuffStat) {
                     playLungeAnim('playerCanvas','player'); playBuffAnim('playerCanvas');
                     p[move.buffStat+'Mult'] = Math.min(3.0, (p[move.buffStat+'Mult']||1) + move.buffAmount);
+                    SoundManager.buffUp();
                     p[move.selfDebuffStat+'Mult'] = Math.max(0.2, (p[move.selfDebuffStat+'Mult']||1) - move.selfDebuffAmount);
                     log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name}！攻擊力大幅提升，但防禦力下降了！`);
                 } else if(move.buffStat){
                     playLungeAnim('playerCanvas','player'); playBuffAnim('playerCanvas');
                     p[move.buffStat+'Mult'] = Math.min(2.0, (p[move.buffStat+'Mult']||1) + move.buffAmount);
+                    SoundManager.buffUp();
                     log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name}!${move.buffStat==='atk'?'攻擊力':'防禦力'}提升了!`);
                 } else if(move.debuffStat && move.power === 0){
                     playLungeAnim('playerCanvas','player'); playStatusInflictAnim('wildCanvas', 'poison');
                     wild[move.debuffStat+'Mult'] = Math.max(0.2, (wild[move.debuffStat+'Mult']||1) - move.debuffAmount);
+                    SoundManager.debuffDown();
                     log(prefix + `${MonsterUtil.species(p).name} 使出 ${move.name}! 對方的${move.debuffStat==='atk'?'攻擊力':'防禦力'}下降了！`);
                 } else if(move.debuffAcc){
                     playLungeAnim('playerCanvas','player'); playStatusInflictAnim('wildCanvas', 'poison');
@@ -397,6 +513,7 @@ const BattleManager = {
                     const inflicted = maybeInflictStatus(p, move, wild);
                     let curedMsg = '';
                     if(inflicted){
+                        SoundManager.statusInflict();
                         setTimeout(()=>playStatusInflictAnim('wildCanvas', inflicted), 150);
                         const cured = tryAutoCureByHeldItem(wild) || tryAutoCureByPassive(wild);
                         if(cured){ curedMsg = ` 但${MonsterUtil.species(wild).name}立刻解除了${STATUS_META[cured].name}!`; setTimeout(()=>playCureAnim('wildCanvas'), 400); }
@@ -574,6 +691,7 @@ const BattleManager = {
                     }
                     if(move.debuffStat){
                         wild[move.debuffStat+'Mult'] = Math.max(0.2, (wild[move.debuffStat+'Mult']||1) - move.debuffAmount);
+                        SoundManager.debuffDown();
                         msg += ` 並且降低了對方的${move.debuffStat==='atk'?'攻擊力':'防禦力'}！`;
                     }
                     if(move.debuffAcc){
@@ -597,6 +715,7 @@ const BattleManager = {
                     
                     const inflicted = maybeInflictStatus(p, move, wild);
                     if(inflicted){
+                        SoundManager.statusInflict();
                         msg += ` 對方陷入了${STATUS_META[inflicted].name}狀態!`;
                         setTimeout(()=>playStatusInflictAnim('wildCanvas', inflicted), 350);
                         const cured = tryAutoCureByHeldItem(wild) || tryAutoCureByPassive(wild);
@@ -723,6 +842,7 @@ const BattleManager = {
                 return;
 } else if(!checkHit(wild, move, p).hit){
                   wild.lastMoveMissed = true;
+                SoundManager.attackMiss();
                 if(move.accuracyStack) wild.honeMissCount = (wild.honeMissCount || 0) + 1;
                 log(prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name},但沒有命中!`);
             } else {
@@ -739,15 +859,18 @@ const BattleManager = {
                 } else if(move.buffStat && move.selfDebuffStat){
                     playLungeAnim('wildCanvas','wild'); playBuffAnim('wildCanvas');
                     wild[move.buffStat+'Mult'] = Math.min(3.0, (wild[move.buffStat+'Mult']||1) + move.buffAmount);
+                    SoundManager.buffUp();
                     wild[move.selfDebuffStat+'Mult'] = Math.max(0.2, (wild[move.selfDebuffStat+'Mult']||1) - move.selfDebuffAmount);
                     log(prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name}! 攻擊力大幅提升，但防禦力下降了！`);
                 } else if(move.buffStat){
                     playLungeAnim('wildCanvas','wild'); playBuffAnim('wildCanvas');
                     wild[move.buffStat+'Mult'] = Math.min(2.0, (wild[move.buffStat+'Mult']||1) + move.buffAmount);
+                    SoundManager.buffUp();
                     log(prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name}!${move.buffStat==='atk'?'攻擊力':'防禦力'}提升了!`);
                 } else if(move.debuffStat && move.power === 0){
                     playLungeAnim('wildCanvas','wild'); playStatusInflictAnim('playerCanvas', 'poison');
                     p[move.debuffStat+'Mult'] = Math.max(0.2, (p[move.debuffStat+'Mult']||1) - move.debuffAmount);
+                    SoundManager.debuffDown();
                     log(prefix + `${(currentTrainer?currentTrainer.name+' 的 ':'野生')} ${MonsterUtil.species(wild).name} 使出 ${move.name}! ${MonsterUtil.species(p).name}的${move.debuffStat==='atk'?'攻擊力':'防禦力'}下降了！`);
                 } else if(move.debuffAcc){
                     playLungeAnim('wildCanvas','wild'); playStatusInflictAnim('playerCanvas', 'poison');
@@ -785,6 +908,7 @@ const BattleManager = {
                     const inflicted = maybeInflictStatus(wild, move, p);
                     let curedMsg = '';
                     if(inflicted){
+                        SoundManager.statusInflict();
                         setTimeout(()=>playStatusInflictAnim('playerCanvas', inflicted), 150);
                         const cured = tryAutoCureByHeldItem(p) || tryAutoCureByPassive(p);
                         if(cured){ curedMsg = ` 但${MonsterUtil.species(p).name}立刻解除了${STATUS_META[cured].name}!`; setTimeout(()=>playCureAnim('playerCanvas'), 400); }
@@ -889,6 +1013,7 @@ const BattleManager = {
                     }
                     if(move.debuffStat){
                         p[move.debuffStat+'Mult'] = Math.max(0.2, (p[move.debuffStat+'Mult']||1) - move.debuffAmount);
+                        SoundManager.debuffDown();
                         msg += ` 並且降低了你的${move.debuffStat==='atk'?'攻擊力':'防禦力'}！`;
                     }
                     if(move.debuffAcc){
@@ -912,6 +1037,7 @@ const BattleManager = {
 
                     const inflicted = maybeInflictStatus(wild, move, p);
                     if(inflicted){
+                        SoundManager.statusInflict();
                         msg += ` ${MonsterUtil.species(p).name} 陷入了${STATUS_META[inflicted].name}狀態!`;
                         setTimeout(()=>playStatusInflictAnim('playerCanvas', inflicted), 350);
                         const cured = tryAutoCureByHeldItem(p) || tryAutoCureByPassive(p);
@@ -967,7 +1093,7 @@ const BattleManager = {
         if(p.hp <= 0){
             const deathMsg = triggerDeathPassives(p, wild);
             if(deathMsg) log(deathMsg);                
-            
+            SoundManager.faint();
             p.bond = Math.max(0, (p.bond || 0) - 5);
             log(`${MonsterUtil.species(p).name} 倒下了... (友好下降)`);
             
@@ -991,6 +1117,7 @@ const BattleManager = {
 
     // 處理戰鬥勝利結算
     winBattle: function() {
+        SoundManager.faint();
         ensureDailyFresh();
         dailyProgress.battles++;
         GameState.player.totalWins = (GameState.player.totalWins || 0) + 1;
@@ -1156,14 +1283,17 @@ if(isTrainer && trainerTeamQueue.length>0){
                 if(isTrainer && trainerTeamQueue.length===0){
             trainersDefeated.add(currentTrainer.id);
             if(currentTrainer.id === 'boss_origindra'){
+                SoundManager.victory();
                 setTimeout(()=>{ log(`✨ 始源龍認可了你的實力！請開啟【任務(Q)】介面領取牠！`); }, 2000);
                 setTimeout(()=> this.endBattle(null), 4500);
                 return;
             }
+            SoundManager.victory();
             setTimeout(()=>{ log(currentTrainer.winMsg || `擊敗了 ${currentTrainer.name}!下次還可以再挑戰。`); }, 2000);
             setTimeout(()=> this.endBattle(null), 3600);
             return;
         }
+        SoundManager.victory();
         setTimeout(()=> this.endBattle(null), 2200);
     },
 
@@ -1198,7 +1328,7 @@ if(isTrainer && trainerTeamQueue.length>0){
         if (wild) wild.intimidateStacks = 0;
        document.getElementById('btnCatch').disabled=false;
         hideBattleControls();
-        if(deathMsg){ party.forEach(m=> m.hp=m.maxHp); toast(deathMsg); }
+        if(deathMsg){ SoundManager.defeat(); party.forEach(m=> m.hp=m.maxHp); toast(deathMsg); }
         updateHud(); SaveManager.save();
 
         // 👇 🌟 創世巨樹：彩虹奇蹟判定 (戰鬥結束後立刻檢查)
@@ -1255,4 +1385,5 @@ function hideBattleControls(msg = '請稍候…') {
         blocker.style.display = 'flex';
         blocker.textContent = msg;
     }
+    focusList = [];
 }

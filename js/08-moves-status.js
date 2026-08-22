@@ -691,6 +691,12 @@ function damageCalc(attacker, move, defender) {
     // 確保最低傷害為 1
     ctx.damage = Math.max(1, Math.floor(ctx.damage));
 
+    // 🔊 音效:依照結果播放命中/會心/剋制音效
+    SoundManager.attackHit();
+    if (ctx.isCritical) SoundManager.criticalHit();
+    if (ctx.multiplier > 1) SoundManager.superEffective();
+    else if (ctx.multiplier < 1) SoundManager.notEffective();
+
     // 回傳最終結果
     return {
         dmg: ctx.damage,
