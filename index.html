@@ -2,6 +2,8 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a2e">
 <title>Monster Quest - 擴充版怪物RPG</title>
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -41,6 +43,29 @@
     <div id="controlsBlocker">對方行動中…</div>
     <div id="moveList"></div>
     <div id="swapList"></div>
+  </div>
+
+  <div id="menuOverlay" class="overlay">
+    <div class="panelTitle">▌ 選單 ▌</div>
+    <div id="menuGrid">
+      <button class="mbtn" id="quickB"><i>👥</i>隊伍</button>
+      <button class="mbtn" id="quickC"><i>📖</i>圖鑑</button>
+      <button class="mbtn" id="quickQ"><i>📜</i>任務</button>
+      <button class="mbtn" id="quickI"><i>🎒</i>背包</button>
+      <button class="mbtn" id="quickN"><i>🔥</i>屬性剋制圖</button>
+      <button class="mbtn" id="quickV"><i>❓</i>說明</button>
+    </div>
+    <div id="menuSys">
+      <div class="sysTitle">系統</div>
+  <button id="retrySaveBtn" style="display:none;">重試存檔</button>
+  <button id="manualSaveBtn">💾 手動存檔</button>
+  <label id="autoSaveLabel" style="font-size:11px;color:#9aa5ce;display:flex;align-items:center;gap:4px;cursor:pointer;">
+    <input type="checkbox" id="autoSaveToggle" checked style="cursor:pointer;"> 自動存檔
+  </label>
+  <button id="exportLiveBtn">匯出目前進度</button>
+  <button id="switchSlotBtn">切換存檔</button>
+  <button id="resetBtn">重置進度</button>
+    </div>
   </div>
 
   <div id="statusOverlay" class="overlay">
@@ -173,14 +198,6 @@
   <div id="hudLevel">-</div>
   <div id="hudCoins">💰 60</div>
   <div id="saveStatus">尚未存檔</div>
-  <button id="retrySaveBtn" style="display:none;">重試存檔</button>
-  <button id="manualSaveBtn">💾 手動存檔(M)</button>
-  <label id="autoSaveLabel" style="font-size:11px;color:#9aa5ce;display:flex;align-items:center;gap:4px;cursor:pointer;">
-    <input type="checkbox" id="autoSaveToggle" checked style="cursor:pointer;"> 自動存檔
-  </label>
-  <button id="exportLiveBtn">匯出目前進度</button>
-  <button id="switchSlotBtn">切換存檔</button>
-  <button id="resetBtn">重置進度</button>
 </div>
 <div id="controls">
   <div style="margin-bottom: 6px;">
@@ -199,19 +216,14 @@
     <button class="dpadBtn" id="dpadLeft" style="grid-area:left;">◀</button>
     <button class="dpadBtn" id="dpadRight" style="grid-area:right;">▶</button>
     <button class="dpadBtn" id="dpadDown" style="grid-area:down;">▼</button>
-<!-- 找到這行並替換 -->
-<button class="dpadBtn" id="dpadF" style="grid-area:center; font-size:12px;">ESC</button>  </div>
-  <div id="quickBtns">
-    <button class="quickBtn" id="quickG" style="grid-column: span 2; border-color:var(--gold); color:var(--gold);">🚶 走(G)</button>
-    <button class="quickBtn" id="quickV" style="border-color:#8e44ad; color:#c9a4ff;">📖 說明(V)</button>
-    <button class="quickBtn" id="quickB">隊伍(B)</button>
-    <button class="quickBtn" id="quickC">圖鑑(C)</button>
-    <button class="quickBtn" id="quickQ">任務(Q)</button>
-    <button class="quickBtn" id="quickI">背包(E)</button>
-    <button class="quickBtn" id="quickN">屬性(N)</button>
-    <button class="quickBtn" id="quickT">疾風(T)</button>
   </div>
+  <button class="bBtn" id="dpadF">↩<small>返回</small></button>
 </div>
+<nav id="tabBar">
+  <button class="tabBtn" id="quickG"><i>🚶</i>走</button>
+  <button class="tabBtn" id="tabMenu"><i>☰</i>選單</button>
+  <button class="tabBtn" id="quickT"><i>🌪</i>疾風</button>
+</nav>
 
 <script src="js/01-core-state.js"></script>
 <script src="js/02-monster-utils.js"></script>
@@ -222,5 +234,6 @@
 <script src="js/07-battle-runtime.js"></script>
 <script src="js/08-moves-status.js"></script>
 <script src="js/09-save-ui.js"></script>
+<script src="js/10-mobile-ui.js"></script>
 </body>
 </html>

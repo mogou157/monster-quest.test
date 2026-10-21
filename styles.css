@@ -177,3 +177,64 @@ kbd { background:#2a2a4a; border:2px solid #666; border-radius:6px; padding:4px 
     display: none; /* 預設隱藏，由 JS 控制顯示 */
   }
   #weatherBadge { color: var(--gold); }
+
+/* =====================================================
+   📱 手機直式 UI（第一階段）：選單頁、底部三分頁、全螢幕面板
+   ===================================================== */
+button{ touch-action:manipulation; }
+.dpadBtn, .bBtn, .tabBtn, .mbtn{ -webkit-touch-callout:none; user-select:none; -webkit-user-select:none; }
+
+#menuOverlay{ overflow-y:auto; }
+#menuGrid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+.mbtn{
+  background:var(--panel); border:2px solid var(--accent2); color:var(--text); font-family:inherit;
+  font-size:14px; border-radius:12px; min-height:76px; padding:6px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+}
+.mbtn i{ font-style:normal; font-size:26px; line-height:1; }
+.mbtn:active, .tabBtn:active, .bBtn:active{ transform:scale(.95); }
+#menuSys{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; border-top:1px solid #2a2a4a; padding-top:12px; }
+#menuSys button{ min-height:44px; }
+.sysTitle{ width:100%; text-align:center; font-size:12px; color:#9aa5ce; letter-spacing:2px; }
+
+#dpadF.bBtn{
+  width:76px; height:76px; border-radius:50%; border:3px solid var(--accent); background:var(--accent); color:#fff;
+  font-family:inherit; font-size:26px; line-height:1; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+#dpadF.bBtn small{ font-size:11px; font-weight:bold; }
+
+#tabBar{
+  display:grid; grid-template-columns:repeat(3,1fr); width:100%; max-width:680px; margin-top:10px;
+  background:var(--panel); border:2px solid var(--accent2); border-radius:12px; overflow:hidden;
+}
+.tabBtn{
+  background:none; border:0; color:var(--text); font-family:inherit; font-size:13px; min-height:58px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+}
+.tabBtn i{ font-style:normal; font-size:22px; line-height:1.2; }
+.tabBtn.on{ color:var(--gold); background:rgba(224,178,90,.14); }
+
+@media (max-width:640px){
+  html, body{ height:100%; }
+  body{ padding:0; height:100dvh; overflow:hidden; align-items:stretch; overscroll-behavior:none;
+        padding-top:env(safe-area-inset-top,0px); }
+  h1{ display:none; }
+  #hud{ order:1; margin:0; padding:6px 10px; gap:2px 12px; font-size:12px; background:#12122a; }
+  #saveStatus{ font-size:12px; }
+  #gameWrap{ order:2; flex:1; min-height:0; width:100%; border:0; border-radius:0; box-shadow:none;
+             display:flex; align-items:center; justify-content:center; }
+  #gameWrap > canvas#mapCanvas{ width:100%; height:auto; max-height:100%; }
+  #controls{ display:none; }
+  #touchControls{ order:3; margin:0; padding:10px 20px; background:#12122a; justify-content:space-between; gap:0; flex-wrap:nowrap; }
+  #tabBar{ order:4; max-width:none; margin:0; border-width:2px 0 0; border-radius:0;
+           padding-bottom:env(safe-area-inset-bottom,0px); }
+  .overlay{ padding:12px; overflow-y:auto; }
+  .panelTitle{ font-size:16px; }
+  .actBtn{ min-height:48px; font-size:15px; }
+  #logBox{ font-size:14px; }
+  canvas.pmon{ width:128px; height:128px; }
+  #menuGrid{ grid-template-columns:1fr 1fr; }
+  .closeHint{ font-size:0; }
+  .closeHint::after{ content:"點右下「返回」鈕關閉"; font-size:12px; color:#9aa5ce; }
+}
