@@ -235,6 +235,8 @@ button{ touch-action:manipulation; }
   #logBox{ font-size:14px; }
   canvas.pmon{ width:128px; height:128px; }
   #menuGrid{ grid-template-columns:1fr 1fr; }
+  /* 戰鬥中隱藏方向鍵、返回鈕與分頁列，讓戰鬥畫面用滿整個區域 */
+  body.in-battle #touchControls, body.in-battle #tabBar{ display:none; }
   /* 戰鬥：對手在上（資訊靠左、圖靠右），我方在下（圖靠左、資訊靠右） */
   .mon-row{ flex-direction:column; align-items:stretch; justify-content:space-evenly; gap:4px; }
   .mon-box{ display:grid; column-gap:12px; align-items:center; width:100%; }

@@ -111,4 +111,12 @@
   let resizeTimer;
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(applyView, 120); });
   applyView();
+
+  // ---- 戰鬥中隱藏操作區（用 CSS 判斷 body.in-battle；不改動戰鬥程式碼）----
+  const battle = $('battleOverlay');
+  if(battle && window.MutationObserver){
+    const syncBattle = () => document.body.classList.toggle('in-battle', battle.style.display === 'flex');
+    new MutationObserver(syncBattle).observe(battle, { attributes:true, attributeFilter:['style'] });
+    syncBattle();
+  }
 })();
