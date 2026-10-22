@@ -212,7 +212,7 @@ const VisionManager = {
         gradient.addColorStop(1, 'rgba(0, 0, 0, 0.95)'); 
 
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.fillRect(-4000, -4000, 8000, 8000); // 📱 鏡頭平移後仍要蓋滿整個畫面
         ctx.restore(); 
     }
 };

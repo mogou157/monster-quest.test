@@ -84,4 +84,31 @@
     el.addEventListener('click', e => { if(repeated){ repeated = false; e.stopImmediatePropagation(); } }, true);
     el.addEventListener('contextmenu', e => e.preventDefault());
   });
+
+  // ---- 跟隨鏡頭（只在手機直式啟用；桌機維持整張地圖）----
+  const mq = window.matchMedia ? window.matchMedia('(max-width:640px)') : { matches:false, addEventListener(){} };
+  const wrap = $('gameWrap'), cvs = $('mapCanvas');
+  let cols = 15, rows = 18, portrait = false;
+  function applyView(){
+    portrait = mq.matches;
+    if(!portrait){
+      if(cvs.width !== 680 || cvs.height !== 440){ cvs.width = 680; cvs.height = 440; }
+    }else{
+      const r = wrap.getBoundingClientRect();
+      if(r.width < 50 || r.height < 50) return;
+      cols = Math.max(11, Math.min(21, Math.round(r.width / 26) | 1));          // 每格約 26px，取奇數讓玩家置中
+      rows = Math.max(9, Math.floor(r.height / (r.width / cols)));
+      cvs.width = cols * TILE; cvs.height = rows * TILE;
+    }
+    if(started){ try{ drawMap(); }catch(_){} }
+  }
+  window.getCamera = function(){
+    if(!portrait) return { x:0, y:0 };
+    const axis = (p, n, v) => n <= v ? -(v - n) / 2 : Math.max(0, Math.min(n - v, p - Math.floor(v / 2)));
+    return { x: axis(player.x, MAP_W, cols), y: axis(player.y, MAP_H, rows) };
+  };
+  if(mq.addEventListener) mq.addEventListener('change', applyView);
+  let resizeTimer;
+  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(applyView, 120); });
+  applyView();
 })();

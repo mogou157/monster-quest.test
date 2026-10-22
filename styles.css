@@ -235,6 +235,18 @@ button{ touch-action:manipulation; }
   #logBox{ font-size:14px; }
   canvas.pmon{ width:128px; height:128px; }
   #menuGrid{ grid-template-columns:1fr 1fr; }
+  /* 戰鬥：對手在上（資訊靠左、圖靠右），我方在下（圖靠左、資訊靠右） */
+  .mon-row{ flex-direction:column; align-items:stretch; justify-content:space-evenly; gap:4px; }
+  .mon-box{ display:grid; column-gap:12px; align-items:center; width:100%; }
+  .mon-box:first-child{ grid-template-columns:1fr 128px; }
+  .mon-box:first-child > canvas{ grid-column:2; grid-row:1 / span 4; }
+  .mon-box:first-child > :not(canvas){ grid-column:1; }
+  .mon-box:last-child{ grid-template-columns:128px 1fr; }
+  .mon-box:last-child > canvas{ grid-column:1; grid-row:1 / span 4; }
+  .mon-box:last-child > :not(canvas){ grid-column:2; }
+  .mon-name{ font-size:14px; }
+  .hp-bar-outer{ width:100%; height:10px; }
+  .hp-text{ font-size:12px; }
   .closeHint{ font-size:0; }
   .closeHint::after{ content:"點右下「返回」鈕關閉"; font-size:12px; color:#9aa5ce; }
 }

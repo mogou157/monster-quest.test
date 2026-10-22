@@ -263,6 +263,10 @@ function tileBaseColor(t){
 
 function drawMap(){
   mctx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+  // 📱 跟隨鏡頭：getCamera() 定義在 10-mobile-ui.js（桌機版固定回傳 0,0，畫面與原本相同）
+  mctx.save();
+  const _cam = (typeof getCamera === 'function') ? getCamera() : {x:0, y:0};
+  mctx.translate(-_cam.x * TILE, -_cam.y * TILE);
   const isCave = GameState.player.mapId === 'map3';
   
   for(let y = 0; y < MAP_H; y++){
@@ -529,6 +533,7 @@ NPCS.filter(n => n.mapId === GameState.player.mapId).forEach(n => {
       VisionManager.drawFog(mctx, TILE);
   }
 
+  mctx.restore(); // 📱 鏡頭結束（下面的天氣是螢幕座標，不跟著鏡頭移動）
   // 👇 🌟 將天氣特效移進來這裡！確保每次畫地圖時一定會連天氣一起畫！
   const owWeatherId = WeatherManager.getOverworldWeather(GameState.player.mapId);
   if (owWeatherId) {
